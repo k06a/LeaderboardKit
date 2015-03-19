@@ -1,8 +1,8 @@
 //
 //  LKGameCenterAccount.m
-//  GameOfTwo
+//  LeaderboardKit
 //
-//  Created by Антон Буков on 19.03.15.
+//  Created by Anton Bukov on 19.03.15.
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
@@ -15,6 +15,11 @@ NSString *LKAccountIdentifierGameCenter = @"LKAccountIdentifierGameCenter";
 
 @property (nonatomic, strong) GKLocalPlayer *account;
 
+@property (nonatomic, strong) CKRecord *userRecord;
+@property (nonatomic, strong) NSArray *friend_ids;
+@property (nonatomic, strong) LKBlockPlayer *localPlayer;
+@property (nonatomic, strong) LKArrayLeaderBoard *leaderboard;
+
 @end
 
 @implementation LKGameCenterAccount
@@ -22,9 +27,9 @@ NSString *LKAccountIdentifierGameCenter = @"LKAccountIdentifierGameCenter";
 - (void)setAccount:(GKLocalPlayer *)account
 {
     _account = account;
-    self.userRecord[@"gamecenter_id"] = self.account_id;
-    self.userRecord[@"gamecenter_full_name"] = self.fullName;
-    self.userRecord[@"gamecenter_screen_name"] = self.screenName;
+    self.userRecord[@"LKGameCenterAccount_id"] = self.localPlayer.account_id;
+    self.userRecord[@"LKGameCenterAccount_full_name"] = self.localPlayer.fullName;
+    self.userRecord[@"LKGameCenterAccount_screen_name"] = self.localPlayer.screenName;
 }
 
 - (BOOL)isAuthorized
@@ -32,19 +37,26 @@ NSString *LKAccountIdentifierGameCenter = @"LKAccountIdentifierGameCenter";
     return (self.account != nil) && self.account.isAuthenticated;
 }
 
-- (NSString *)account_id
+- (LKBlockPlayer *)localPlayer
 {
-    return self.account.playerID;
+    if (_localPlayer == nil) {
+        _localPlayer = [[LKBlockPlayer alloc] initWithAccountType:LKAccountIdentifierGameCenter accountId:^NSString *{
+            return self.account.playerID;
+        } fullName:^NSString *{
+            return self.account.displayName;
+        } screenName:^NSString *{
+            return self.account.alias;
+        }];
+    }
+    return _localPlayer;
 }
 
-- (NSString *)fullName
+- (LKArrayLeaderBoard *)leaderboard
 {
-    return self.account.displayName;
-}
-
-- (NSString *)screenName
-{
-    return self.account.alias;
+    if (_leaderboard == nil) {
+        _leaderboard = [[LKArrayLeaderBoard alloc] init];
+    }
+    return _leaderboard;
 }
 
 - (instancetype)init
@@ -56,9 +68,7 @@ NSString *LKAccountIdentifierGameCenter = @"LKAccountIdentifierGameCenter";
 {
     if (self = [super init]) {
         self.userRecord = userRecord;
-        
-        self.friend_ids = self.userRecord[@"gamecenter_friend_ids"];
-        
+        self.friend_ids = self.userRecord[@"LKGameCenterAccount_friend_ids"];
         [self requestFriendIdsSuccess:nil failure:nil];
     }
     return self;
@@ -77,7 +87,7 @@ NSString *LKAccountIdentifierGameCenter = @"LKAccountIdentifierGameCenter";
         }
         
         if (weakSelf.account.isAuthenticated) {
-            if (![weakSelf.account.playerID isEqualToString:weakSelf.userRecord[@"gamecenter_id"]]) {
+            if (![weakSelf.account.playerID isEqualToString:weakSelf.userRecord[@"LKGameCenterAccount_id"]]) {
                 weakSelf.account = weakSelf.account;
                 [weakSelf requestFriendIdsSuccess:nil failure:nil];
             }
@@ -108,7 +118,7 @@ NSString *LKAccountIdentifierGameCenter = @"LKAccountIdentifierGameCenter";
             if (success)
                 success(ids);
             self.friend_ids = ids;
-            self.userRecord[@"gamecenter_friend_ids"] = ids;
+            self.userRecord[@"LKGameCenterAccount_friend_ids"] = ids;
         });
     }];
 }

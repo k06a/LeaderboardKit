@@ -1,23 +1,21 @@
 //
-//  LKSource.h
-//  GameOfTwo
+//  LKAccount.h
+//  LeaderboardKit
 //
-//  Created by Антон Буков on 19.03.15.
+//  Created by Anton Bukov on 19.03.15.
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
 #import <CloudKit/CloudKit.h>
 #import <Foundation/Foundation.h>
+#import "LKLeaderboard.h"
 
 @protocol LKAccount <NSObject>
 
 @property (nonatomic, readonly) BOOL isAuthorized;
-
-@property (nonatomic, strong) CKRecord *userRecord;
-@property (nonatomic, strong) NSString *account_id;
-@property (nonatomic, strong) NSString *fullName;
-@property (nonatomic, strong) NSString *screenName;
-@property (nonatomic, strong) NSArray *friend_ids;
+@property (nonatomic, readonly) CKRecord *userRecord;
+@property (nonatomic, readonly) NSArray *friend_ids;
+@property (nonatomic, readonly) id<LKPlayer> localPlayer;
 
 - (instancetype)init __attribute__ ((deprecated));
 - (instancetype)initWithUserRecord:(CKRecord *)userRecord;

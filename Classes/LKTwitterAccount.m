@@ -1,8 +1,8 @@
 //
-//  LKTwitterSource.m
-//  GameOfTwo
+//  LKTwitterAccount.m
+//  LeaderboardKit
 //
-//  Created by Антон Буков on 19.03.15.
+//  Created by Anton Bukov on 19.03.15.
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
@@ -18,6 +18,11 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
 @property (nonatomic, strong) ACAccount *account;
 @property (nonatomic, strong) void(^authSuccess)();
 @property (nonatomic, strong) void(^authFailure)(NSError *);
+
+@property (nonatomic, strong) CKRecord *userRecord;
+@property (nonatomic, strong) NSArray *friend_ids;
+@property (nonatomic, strong) LKBlockPlayer *localPlayer;
+@property (nonatomic, strong) LKArrayLeaderBoard *leaderboard;
 
 @end
 
@@ -41,9 +46,9 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
 {
     _account = account;
     
-    self.userRecord[@"twitter_id"] = self.account_id;
-    self.userRecord[@"twitter_full_name"] = self.fullName;
-    self.userRecord[@"twitter_screen_name"] = self.screenName;
+    self.userRecord[@"LKTwitterAccount_id"] = self.localPlayer.account_id;
+    self.userRecord[@"LKTwitterAccount_full_name"] = self.localPlayer.fullName;
+    self.userRecord[@"LKTwitterAccount_screen_name"] = self.localPlayer.screenName;
 }
 
 - (BOOL)isAuthorized
@@ -51,19 +56,18 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
     return (self.account != nil);
 }
 
-- (NSString *)account_id
+- (LKBlockPlayer *)localPlayer
 {
-    return [[self.account valueForKey:@"properties"] valueForKey:@"user_id"];
-}
-
-- (NSString *)fullName
-{
-    return self.account.userFullName;
-}
-
-- (NSString *)screenName
-{
-    return self.account.username;
+    if (_localPlayer == nil) {
+        _localPlayer = [[LKBlockPlayer alloc] initWithAccountType:LKAccountIdentifierTwitter accountId:^NSString *{
+            return [[self.account valueForKey:@"properties"] valueForKey:@"user_id"];
+        } fullName:^NSString *{
+            return self.account.userFullName;
+        } screenName:^NSString *{
+            return self.account.username;
+        }];
+    }
+    return _localPlayer;
 }
 
 - (instancetype)init
@@ -75,14 +79,12 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
 {
     if (self = [super init]) {
         self.userRecord = userRecord;
-        int64_t account_id = [userRecord[@"twitter_id"] longLongValue];
+        int64_t account_id = [userRecord[@"LKTwitterAccount_id"] longLongValue];
         for (ACAccount *account in [self.accountStore accountsWithAccountType:self.accountType]) {
             if (account_id == [[[account valueForKey:@"properties"] valueForKey:@"user_id"] longLongValue])
                 self.account = account;
         }
-        
-        self.friend_ids = self.userRecord[@"twitter_friend_ids"];
-        
+        self.friend_ids = self.userRecord[@"LKTwitterAccount_friend_ids"];
         [self requestFriendIdsSuccess:nil failure:nil];
     }
     return self;
@@ -170,7 +172,7 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
             if (success)
                 success(ids);
             self.friend_ids = ids;
-            self.userRecord[@"twitter_friend_ids"] = ids;
+            self.userRecord[@"LKTwitterAccount_friend_ids"] = ids;
         });
     }];
 }

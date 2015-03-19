@@ -1,8 +1,8 @@
 //
 //  ABLeaderboardKit.m
-//  GameOfTwo
+//  LeaderboardKit
 //
-//  Created by Антон Буков on 17.03.15.
+//  Created by Anton Bukov on 17.03.15.
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
@@ -14,6 +14,8 @@
 @interface LeaderboardKit ()
 
 @property (nonatomic, strong) NSMutableDictionary *accounts;
+@property (nonatomic, strong) NSMutableDictionary *leaderboards;
+@property (nonatomic, strong) NSMutableDictionary *scoreIds;
 @property (nonatomic, strong) NSMutableArray *whenInitializedBlocks;
 
 @property (nonatomic, strong) CKContainer *container;
@@ -24,6 +26,34 @@
 
 @implementation LeaderboardKit
 
+- (void)checkFriendsChangedRecursively
+{
+    if (!self.isInitialized) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self checkFriendsChangedRecursively];
+        });
+    }
+    
+    BOOL friends_changed = NO;
+    for (NSString *key in self.userRecord.changedKeys) {
+        if ([key rangeOfString:@"_friend_ids"].location != NSNotFound) {
+            friends_changed = YES;
+            break;
+        }
+    }
+    
+    if (friends_changed) {
+        for (NSString *leaderboardName in @[@"3x3",@"4x4",@"5x5"]) {
+            NSInteger myPoints = [[NSUserDefaults standardUserDefaults] integerForKey:[@"max_" stringByAppendingString:leaderboardName]];
+            [self subscribeToLeaderboard:leaderboardName withScore:@(myPoints) success:nil failure:nil];
+        }
+    }
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60*5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self checkFriendsChangedRecursively];
+    });
+}
+
 + (instancetype)shared
 {
     if ([UIDevice currentDevice].systemVersion.doubleValue < 8.0)
@@ -33,7 +63,10 @@
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         shared = [[LeaderboardKit alloc] init];
-        shared.whenInitializedBlocks = [NSMutableArray array];
+        [shared whenInitialized:^{
+            [shared checkFriendsChangedRecursively];
+            [shared updateLeaderboards];
+        }];
     });
     return shared;
 }
@@ -68,6 +101,30 @@
 - (void)setAccount:(id<LKAccount>)account forIdentifier:(NSString *)identifier
 {
     ((id)self.accounts)[identifier] = account;
+}
+
+- (NSDictionary *)leaderboards
+{
+    if (_leaderboards == nil)
+        _leaderboards = [NSMutableDictionary dictionary];
+    return _leaderboards;
+}
+
+- (id<LKLeaderboard>)leaderboardForName:(NSString *)name
+{
+    return self.leaderboards[name];
+}
+
+- (void)setLeaderboard:(id<LKLeaderboard>)leaderboard forName:(NSString *)name
+{
+    ((id)self.leaderboards)[name] = leaderboard;
+}
+
+- (NSMutableDictionary *)scoreIds
+{
+    if (_scoreIds == nil)
+        _scoreIds = [NSMutableDictionary dictionary];
+    return _scoreIds;
 }
 
 - (CKContainer *)container
@@ -114,7 +171,11 @@
             }
             _userRecord = record;
             
-            if ([_userRecord[@"twitter_id"] longLongValue]) {
+            if ([_userRecord[@"LKGameCenterAccount_id"] length]) {
+                id<LKAccount> account = [[LKGameCenterAccount alloc] initWithUserRecord:_userRecord];
+                [self setAccount:account forIdentifier:LKAccountIdentifierGameCenter];
+            }
+            if ([_userRecord[@"LKTwitterAccount_id"] length]) {
                 id<LKAccount> account = [[LKTwitterAccount alloc] initWithUserRecord:_userRecord];
                 [self setAccount:account forIdentifier:LKAccountIdentifierTwitter];
             }
@@ -140,55 +201,122 @@
     return self;
 }
 
-/*
 - (void)subscribeToLeaderboard:(NSString *)leaderboardName
                      withScore:(NSNumber *)myScore
                        success:(void(^)())success
                        failure:(void(^)(NSError *))failure
 {
-    NSArray *twitter_ids = self.userRecord[@"twitter_friend_ids"];
-    if (twitter_ids.count) {
-        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score < %@) AND (twitter_id IN %@)", myScore, myScore, twitter_ids];
-        NSLog(@"myScore = %@, ids = %@ .. %@", myScore, twitter_ids.firstObject, twitter_ids.lastObject);
+    if (self.accounts.count == 0)
+        return;
+    
+    NSCompoundPredicate *idsPredicate = ^{
+        NSMutableArray *idsPredicates = [NSMutableArray array];
+        for (id<LKAccount> account in self.accounts) {
+            NSString *key = [NSString stringWithFormat:@"%@_id",[account class]];
+            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K IN %@",key,[account friend_ids]];
+            [idsPredicates addObject:predicate];
+        }
+        return [[NSCompoundPredicate alloc] initWithType:NSOrPredicateType subpredicates:idsPredicates];
+    }();
+    NSPredicate *scorePredicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score < %@)", myScore, myScore];
+    NSPredicate *predicate = [[NSCompoundPredicate alloc] initWithType:NSAndPredicateType subpredicates:@[scorePredicate,idsPredicate]];
+    
+    CKNotificationInfo *notificationInfo = [CKNotificationInfo new];
+    notificationInfo.alertLocalizationKey = [NSString stringWithFormat:@"LK_NOTIFICATION_%@",leaderboardName];
+    notificationInfo.alertLocalizationArgs = @[@"name",@"score"];
+    notificationInfo.soundName = @"Party.aiff";
+    notificationInfo.shouldBadge = YES;
+    
+    NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
+    CKSubscription *subs = [[CKSubscription alloc] initWithRecordType:recordType predicate:predicate options:(CKSubscriptionOptionsFiresOnRecordUpdate|CKSubscriptionOptionsFiresOnRecordCreation)];
+    subs.notificationInfo = notificationInfo;
+    
+    void(^saveSubscriptionBlock)() = ^{
+        [self.database saveSubscription:subs completionHandler:^(CKSubscription *subscription, NSError *error)
+         {
+             if (error) {
+                 NSLog(@"Error: %@", error.localizedDescription);
+                 if (failure)
+                     failure(error);
+                 return;
+             }
+             NSLog(@"Success!");
+             if (success)
+                 success();
+         }];
+    };
+    
+    [self.database fetchAllSubscriptionsWithCompletionHandler:^(NSArray *subscriptions, NSError *error) {
+        if (subscriptions.count == 0)
+            saveSubscriptionBlock();
         
-        CKNotificationInfo *notificationInfo = [CKNotificationInfo new];
-        notificationInfo.alertLocalizationKey = [NSString stringWithFormat:@"TWITTER_NOTE_%@",leaderboardName];
-        notificationInfo.alertLocalizationArgs = @[@"full_name",@"score"];
-        notificationInfo.soundName = @"Party.aiff";
-        notificationInfo.shouldBadge = YES;
-        
-        CKSubscription *subs = [[CKSubscription alloc] initWithRecordType:[NSString stringWithFormat:@"Highscore_%@",leaderboardName] predicate:predicate options:(CKSubscriptionOptionsFiresOnRecordCreation)];
-        subs.notificationInfo = notificationInfo;
-        
-        void(^saveSubscriptionBlock)() = ^{
-            [self.database saveSubscription:subs completionHandler:^(CKSubscription *subscription, NSError *error)
-             {
-                 if (error) {
-                     NSLog(@"Error: %@", error.localizedDescription);
-                     if (failure)
-                         failure(error);
-                     return;
-                 }
-                 NSLog(@"Success!");
-                 if (success)
-                     success();
-             }];
-        };
-        
-        [self.database fetchAllSubscriptionsWithCompletionHandler:^(NSArray *subscriptions, NSError *error) {
-            if (subscriptions.count == 0)
-                saveSubscriptionBlock();
-            
-            __block NSInteger subscriptionCount = subscriptions.count;
-            for (CKSubscription *sub in subscriptions) {
+        __block NSInteger subscriptionCount = subscriptions.count;
+        for (CKSubscription *sub in subscriptions) {
+            if ([sub.recordType isEqualToString:recordType]) {
                 [self.database deleteSubscriptionWithID:sub.subscriptionID completionHandler:^(NSString *subscriptionID, NSError *error) {
                     if (--subscriptionCount == 0)
                         saveSubscriptionBlock();
                 }];
-            }
-        }];
-    }
+            } else
+                subscriptionCount--;
+        }
+    }];
+}
+
+- (void)prepareLeaderboardsWithNames:(NSArray *)leaderboardNames
+{
+    for (NSString *leaderboardName in leaderboardNames)
+        [self setLeaderboard:[[LKArrayLeaderBoard alloc] init] forName:leaderboardName];
+}
+
+- (void)updateLeaderboard:(NSString *)leaderboardName
+{
+    NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
+    CKQuery *query = [[CKQuery alloc] initWithRecordType:recordType predicate:[NSPredicate predicateWithFormat:@"%K IN ",recordType]];
+    query.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"score" ascending:NO]];
+    [self.database performQuery:query inZoneWithID:nil completionHandler:^(NSArray *results, NSError *error) {
+        NSMutableArray *scores = [NSMutableArray array];
+        for (CKRecord *record in results) {
+            LKBasicPlayer *player = [[LKBasicPlayer alloc] init];
+            player.fullName = record[@"name"];
+            LKPlayerScore *playerScore = [[LKPlayerScore alloc] init];
+            playerScore.player = player;
+            playerScore.score = record[@"score"];
+            [scores addObject:playerScore];
+        }
+        LKArrayLeaderBoard *leaderboard = [self leaderboardForName:leaderboardName];
+        leaderboard.sortedScores = scores;
+    }];
+}
+
+- (void)updateLeaderboards
+{
+    for (NSString *leaderboardName in self.leaderboards.keyEnumerator)
+        [self updateLeaderboard:leaderboardName];
+}
+
+- (void)updateScore:(NSNumber *)score forName:(NSString *)name
+{
+    NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",name];
+    CKRecordID *scoreId = self.scoreIds[name];
+    CKRecord *record = ^{
+        if (scoreId == nil)
+            return [[CKRecord alloc] initWithRecordType:recordType];
+        return [[CKRecord alloc] initWithRecordType:recordType recordID:scoreId];
+    }();
     
-}*/
+    id<LKAccount> account = self.accounts.allValues.firstObject;
+    record[@"name"] = [[account localPlayer] fullName] ?: [[account localPlayer] screenName];
+    record[@"prev_score"] = record[@"score"];
+    record[@"score"] = score;
+    
+    [self.database saveRecord:record completionHandler:^(CKRecord *record, NSError *error) {
+        if (error) {
+            [self updateScore:score forName:name];
+            return;
+        }
+        self.scoreIds[name] = record.recordID;
+    }];
+}
 
 @end
