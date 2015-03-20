@@ -285,7 +285,7 @@
             [scores addObject:playerScore];
         }
         LKArrayLeaderBoard *leaderboard = [self leaderboardForName:leaderboardName];
-        leaderboard.sortedScores = scores;
+        [leaderboard setScores:scores];
     }];
 }
 

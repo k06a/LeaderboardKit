@@ -19,6 +19,6 @@
 
 @interface LKArrayLeaderBoard : NSObject <LKLeaderboard>
 
-@property (nonatomic, strong) NSArray *sortedScores;
+- (void)setScores:(NSArray *)scores;
 
 @end

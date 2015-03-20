@@ -8,11 +8,17 @@
 
 #import "LKLeaderboard.h"
 
+@interface LKArrayLeaderBoard ()
+
+@property (nonatomic, strong) NSArray *sortedScores;
+
+@end
+
 @implementation LKArrayLeaderBoard
 
-- (void)setSortedScores:(NSArray *)sortedScores
+- (void)setScores:(NSArray *)scores
 {
-    _sortedScores = [sortedScores sortedArrayUsingComparator:^NSComparisonResult(LKPlayerScore *ps1, LKPlayerScore *ps2) {
+    self.sortedScores = [scores sortedArrayUsingComparator:^NSComparisonResult(LKPlayerScore *ps1, LKPlayerScore *ps2) {
         return [ps1.score compare:ps2.score];
     }];
 }
