@@ -1,5 +1,5 @@
 //
-//  ABLeaderboardKit.h
+//  LeaderboardKit.h
 //  LeaderboardKit
 //
 //  Created by Anton Bukov on 17.03.15.
