@@ -30,7 +30,7 @@
 - (id<LKLeaderboard>)leaderboardForName:(NSString *)name;
 - (void)setLeaderboard:(id<LKLeaderboard>)leaderboard forName:(NSString *)name;
 
-- (void)prepareLeaderboardsWithNames:(NSArray *)leaderboardNames;
+- (void)setupLeaderboardNames:(NSArray *)leaderboardNames;
 - (void)updateLeaderboard:(NSString *)leaderboardName;
 - (void)updateLeaderboards;
 

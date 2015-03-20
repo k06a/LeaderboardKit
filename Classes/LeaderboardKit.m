@@ -263,7 +263,7 @@
     }];
 }
 
-- (void)prepareLeaderboardsWithNames:(NSArray *)leaderboardNames
+- (void)setupLeaderboardNames:(NSArray *)leaderboardNames
 {
     for (NSString *leaderboardName in leaderboardNames)
         [self setLeaderboard:[[LKArrayLeaderBoard alloc] init] forName:leaderboardName];
