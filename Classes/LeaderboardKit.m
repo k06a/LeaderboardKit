@@ -210,7 +210,7 @@
         }
         return [[NSCompoundPredicate alloc] initWithType:NSOrPredicateType subpredicates:idsPredicates];
     }();
-    NSPredicate *scorePredicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score < %@)", myScore, myScore];
+    NSPredicate *scorePredicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score <= %@)", myScore, myScore];
     NSPredicate *predicate = [[NSCompoundPredicate alloc] initWithType:NSAndPredicateType subpredicates:@[scorePredicate,idsPredicate]];
     
     CKNotificationInfo *notificationInfo = [CKNotificationInfo new];
@@ -289,7 +289,7 @@
 
 - (void)updateScore:(NSNumber *)score forName:(NSString *)name
 {
-    NSString *score_key = [NSString stringWithFormat:@"score_%@",name];
+    NSString *score_key = [NSString stringWithFormat:@"LK_score_%@",name];
     CKReference *scoreRef = self.userRecord[score_key];
     
     NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",name];
