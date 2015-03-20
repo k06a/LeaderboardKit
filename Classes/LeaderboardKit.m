@@ -15,7 +15,6 @@
 
 @property (nonatomic, strong) NSMutableDictionary *accounts;
 @property (nonatomic, strong) NSMutableDictionary *leaderboards;
-@property (nonatomic, strong) NSMutableDictionary *scoreIds;
 @property (nonatomic, strong) NSMutableArray *whenInitializedBlocks;
 
 @property (nonatomic, strong) CKContainer *container;
@@ -118,13 +117,6 @@
 - (void)setLeaderboard:(id<LKLeaderboard>)leaderboard forName:(NSString *)name
 {
     ((id)self.leaderboards)[name] = leaderboard;
-}
-
-- (NSMutableDictionary *)scoreIds
-{
-    if (_scoreIds == nil)
-        _scoreIds = [NSMutableDictionary dictionary];
-    return _scoreIds;
 }
 
 - (CKContainer *)container
@@ -297,12 +289,14 @@
 
 - (void)updateScore:(NSNumber *)score forName:(NSString *)name
 {
+    NSString *score_key = [NSString stringWithFormat:@"score_%@",name];
+    CKReference *scoreRef = self.userRecord[score_key];
+    
     NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",name];
-    CKRecordID *scoreId = self.scoreIds[name];
     CKRecord *record = ^{
-        if (scoreId == nil)
+        if (scoreRef.recordID == nil)
             return [[CKRecord alloc] initWithRecordType:recordType];
-        return [[CKRecord alloc] initWithRecordType:recordType recordID:scoreId];
+        return [[CKRecord alloc] initWithRecordType:recordType recordID:scoreRef.recordID];
     }();
     
     id<LKAccount> account = self.accounts.allValues.firstObject;
@@ -315,7 +309,8 @@
             [self updateScore:score forName:name];
             return;
         }
-        self.scoreIds[name] = record.recordID;
+        if (self.userRecord[score_key] == nil)
+            self.userRecord[score_key] = [[CKReference alloc] initWithRecordID:record.recordID action:(CKReferenceActionNone)];
     }];
 }
 
