@@ -6,8 +6,12 @@ iOS and OSX social leaderboards and highscore push notifications on top of Apple
 
 1. `pod 'LeaderboardKit'`
 2. `#import <LeaderboardKit/LeaderboardKit.h>`
-3. Just call method `[LeaderboardKit shared]` inside `application:didFinishLaunchingWithOptions:`
+3. Setup leaderboards inside `application:didFinishLaunchingWithOptions:`:
 
+   ```objective-c
+   [[LeaderboardKit shared] setupLeaderboardNames:@[@"3x3",@"4x4",@"5x5"]];
+   ```
+   
 ## Integrate GameCenter when LeaderboardKit become ready
 
 ```objective-c
