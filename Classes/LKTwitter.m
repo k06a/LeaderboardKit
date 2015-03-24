@@ -6,12 +6,12 @@
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
+#import <Accounts/Accounts.h>
 #import <Social/Social.h>
-#import "LKTwitterAccount.h"
+#import "LeaderboardKit.h"
+#import "LKTwitter.h"
 
-NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
-
-@interface LKTwitterAccount () <UIActionSheetDelegate>
+@interface LKTwitter () <UIActionSheetDelegate>
 
 @property (nonatomic, strong) ACAccountStore *accountStore;
 @property (nonatomic, strong) ACAccountType *accountType;
@@ -19,14 +19,13 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
 @property (nonatomic, strong) void(^authSuccess)();
 @property (nonatomic, strong) void(^authFailure)(NSError *);
 
-@property (nonatomic, strong) CKRecord *userRecord;
 @property (nonatomic, strong) NSArray *friend_ids;
-@property (nonatomic, strong) LKBlockPlayer *localPlayer;
-@property (nonatomic, strong) LKArrayLeaderBoard *leaderboard;
+@property (nonatomic, strong) LKPlayer *localPlayer;
+@property (nonatomic, strong) LKLeaderboard *leaderboard;
 
 @end
 
-@implementation LKTwitterAccount
+@implementation LKTwitter
 
 - (ACAccountStore *)accountStore
 {
@@ -45,10 +44,19 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
 - (void)setAccount:(ACAccount *)account
 {
     _account = account;
+    self.localPlayer = ^{
+        LKPlayer *p = [[LKPlayer alloc] init];
+        p.account_id = [[account valueForKey:@"properties"] valueForKey:@"user_id"];
+        p.fullName = account.userFullName;
+        p.screenName = account.username;
+        p.recordId = [LeaderboardKit shared].userRecord.recordID;
+        p.accountType = [[self class] description];
+        return p;
+    }();
     
-    self.userRecord[@"LKTwitterAccount_id"] = self.localPlayer.account_id;
-    self.userRecord[@"LKTwitterAccount_full_name"] = self.localPlayer.fullName;
-    self.userRecord[@"LKTwitterAccount_screen_name"] = self.localPlayer.screenName;
+    [LeaderboardKit shared].userRecord[@"LKTwitter_id"] = self.localPlayer.account_id;
+    [LeaderboardKit shared].userRecord[@"LKTwitter_full_name"] = self.localPlayer.fullName;
+    [LeaderboardKit shared].userRecord[@"LKTwitter_screen_name"] = self.localPlayer.screenName;
 }
 
 - (BOOL)isAuthorized
@@ -56,36 +64,16 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
     return (self.account != nil);
 }
 
-- (LKBlockPlayer *)localPlayer
-{
-    if (_localPlayer == nil) {
-        _localPlayer = [[LKBlockPlayer alloc] initWithAccountType:LKAccountIdentifierTwitter accountId:^NSString *{
-            return [[self.account valueForKey:@"properties"] valueForKey:@"user_id"];
-        } fullName:^NSString *{
-            return self.account.userFullName;
-        } screenName:^NSString *{
-            return self.account.username;
-        }];
-    }
-    return _localPlayer;
-}
-
 - (instancetype)init
 {
-    return nil;
-}
-
-- (instancetype)initWithUserRecord:(CKRecord *)userRecord
-{
     if (self = [super init]) {
-        self.userRecord = userRecord;
-        int64_t account_id = [userRecord[@"LKTwitterAccount_id"] longLongValue];
+        int64_t account_id = [[LeaderboardKit shared].userRecord[@"LKTwitter_id"] longLongValue];
         for (ACAccount *account in [self.accountStore accountsWithAccountType:self.accountType]) {
             if (account_id == [[[account valueForKey:@"properties"] valueForKey:@"user_id"] longLongValue])
                 self.account = account;
         }
-        self.friend_ids = self.userRecord[@"LKTwitterAccount_friend_ids"];
-        [self requestFriendIdsSuccess:nil failure:nil];
+        self.friend_ids = [LeaderboardKit shared].userRecord[@"LKTwitter_friend_ids"];
+        [self requestFriendsSuccess:nil failure:nil];
     }
     return self;
 }
@@ -130,15 +118,15 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
     
     NSInteger accountIndex = buttonIndex - actionSheet.firstOtherButtonIndex;
     self.account = [self.accountStore accountsWithAccountType:self.accountType][accountIndex];
-    [self requestFriendIdsSuccess:nil failure:nil];
+    [self requestFriendsSuccess:nil failure:nil];
     dispatch_async(dispatch_get_main_queue(), ^{
         if (self.authSuccess)
             self.authSuccess();
     });
 }
 
-- (void)requestFriendIdsSuccess:(void(^)(NSArray *ids))success
-                        failure:(void(^)(NSError *error))failure
+- (void)requestFriendsSuccess:(void(^)())success
+                      failure:(void(^)(NSError *error))failure
 {
     SLRequest *request = [SLRequest requestForServiceType:SLServiceTypeTwitter requestMethod:SLRequestMethodGET URL:[NSURL URLWithString:@"https://api.twitter.com/1.1/friends/ids.json?"] parameters:@{@"screen_name":self.account.username,@"cursor":@-1}];
     request.account = self.account;
@@ -146,7 +134,6 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
     [request performRequestWithHandler:^(NSData *responseData, NSHTTPURLResponse *urlResponse, NSError *error)
     {
         if (error || responseData == nil) {
-            NSLog(@"Error: %@", error.localizedDescription);
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (failure)
                     failure(error);
@@ -168,11 +155,11 @@ NSString *LKAccountIdentifierTwitter = @"LKAccountIdentifierTwitter";
         for (NSNumber *id in json[@"ids"])
             [ids addObject:id.stringValue];
         
+        self.friend_ids = ids;
+        [LeaderboardKit shared].userRecord[@"LKTwitter_friend_ids"] = ids;
         dispatch_async(dispatch_get_main_queue(), ^{
             if (success)
-                success(ids);
-            self.friend_ids = ids;
-            self.userRecord[@"LKTwitterAccount_friend_ids"] = ids;
+                success();
         });
     }];
 }

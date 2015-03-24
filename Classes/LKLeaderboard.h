@@ -7,18 +7,12 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "LKPlayer.h"
 
-@protocol LKLeaderboard <NSObject>
+@interface LKLeaderboard : NSObject
 
 @property (nonatomic, readonly) NSArray *sortedScores;
 
-@end
-
-//
-
-@interface LKArrayLeaderBoard : NSObject <LKLeaderboard>
-
+- (LKPlayerScore *)findAccountWithId:(NSString *)account_id;
 - (void)setScores:(NSArray *)scores;
 
 @end

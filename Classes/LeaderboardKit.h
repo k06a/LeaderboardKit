@@ -6,13 +6,16 @@
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
 #import <CloudKit/CloudKit.h>
+#import <Foundation/Foundation.h>
+
 #import "LKPlayer.h"
 #import "LKAccount.h"
 #import "LKLeaderboard.h"
-#import "LKGameCenterAccount.h"
-#import "LKTwitterAccount.h"
+#import "LKGameCenter.h"
+#import "LKTwitter.h"
+
+#import "LKLeaderboardListViewController.h"
 
 @interface LeaderboardKit : NSObject
 
@@ -20,20 +23,35 @@
 
 - (void)whenInitialized:(void(^)())block;
 @property (nonatomic, readonly) BOOL isInitialized;
-@property (nonatomic, strong) CKRecord *userRecord;
+@property (nonatomic, readonly) CKRecord *userRecord;
 
-- (NSDictionary *)accounts;
-- (id<LKAccount>)accountForIdentifier:(NSString *)identifier;
-- (void)setAccount:(id<LKAccount>)account forIdentifier:(NSString *)identifier;
+#pragma mark - Accounts
 
-- (NSDictionary *)leaderboards;
-- (id<LKLeaderboard>)leaderboardForName:(NSString *)name;
-- (void)setLeaderboard:(id<LKLeaderboard>)leaderboard forName:(NSString *)name;
+- (NSArray *)accounts;
+- (void)addAccount:(id<LKAccount>)account;
+- (id<LKAccount>)accountWithPredicate:(BOOL(^)(id<LKAccount> account))predicate;
+- (id<LKAccount>)accountWithClass:(Class)class;
+
+#pragma mark - Leaderboards
+
+- (NSDictionary *)cloudLeaderboards;
+- (LKLeaderboard *)cloudLeaderboardForName:(NSString *)name;
+- (void)setCloudLeaderboard:(LKLeaderboard *)cloudLeaderboard forName:(NSString *)name;
+
+- (NSDictionary *)commonLeaderboards;
+- (LKLeaderboard *)commonLeaderboardForName:(NSString *)name;
+- (void)setCommonLeaderboard:(LKLeaderboard *)commonLeaderboard forName:(NSString *)name;
+- (void)calculateCommonLeaderboard;
 
 - (void)setupLeaderboardNames:(NSArray *)leaderboardNames;
 - (void)updateLeaderboard:(NSString *)leaderboardName;
 - (void)updateLeaderboards;
 
-- (void)updateScore:(NSNumber *)score forName:(NSString *)name;
+- (void)reportScore:(NSNumber *)score forName:(NSString *)name;
+
+- (void)subscribeToLeaderboard:(NSString *)leaderboardName
+                     withScore:(NSNumber *)myScore
+                       success:(void(^)())success
+                       failure:(void(^)(NSError *))failure;
 
 @end

@@ -6,12 +6,9 @@
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
-#import <Accounts/Accounts.h>
 #import <Foundation/Foundation.h>
 #import "LKAccount.h"
 
-extern NSString *LKAccountIdentifierTwitter;
-
-@interface LKTwitterAccount : NSObject <LKAccount>
+@interface LKTwitter : NSObject <LKAccount>
 
 @end

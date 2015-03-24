@@ -9,8 +9,9 @@
 #import <Foundation/Foundation.h>
 #import "LKAccount.h"
 
-extern NSString *LKAccountIdentifierGameCenter;
+extern NSString *(^LKGameCenterIdentifierToNameTranform)(NSString *);
+extern NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *);
 
-@interface LKGameCenterAccount : NSObject <LKAccount>
+@interface LKGameCenter : NSObject <LKAccountWithLeaderboards>
 
 @end
