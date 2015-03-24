@@ -49,7 +49,7 @@
         p.account_id = [[account valueForKey:@"properties"] valueForKey:@"user_id"];
         p.fullName = account.userFullName;
         p.screenName = account.username;
-        p.recordId = [LeaderboardKit shared].userRecord.recordID;
+        p.recordID = [LeaderboardKit shared].userRecord.recordID;
         p.accountType = [[self class] description];
         return p;
     }();

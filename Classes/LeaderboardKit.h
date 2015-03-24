@@ -17,6 +17,8 @@
 
 #import "LKLeaderboardListViewController.h"
 
+extern NSString *LKLeaderboardChangedNotification;
+
 @interface LeaderboardKit : NSObject
 
 + (instancetype)shared;

@@ -44,7 +44,7 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
         p.account_id = account.playerID;
         p.fullName = account.displayName;
         p.screenName = account.alias;
-        p.recordId = [LeaderboardKit shared].userRecord.recordID;
+        p.recordID = [LeaderboardKit shared].userRecord.recordID;
         p.accountType = [[self class] description];
         return p;
     }();
@@ -92,9 +92,7 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
             return;
         }
         
-        if (![weakSelf.account.playerID isEqualToString:[LeaderboardKit shared].userRecord[@"LKGameCenter_id"]]) {
-            weakSelf.account = weakSelf.account;
-        }
+        weakSelf.account = weakSelf.account;
         [weakSelf requestFriendsSuccess:nil failure:nil];
         [weakSelf requestLeaderboardsSuccess:nil failure:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -213,6 +211,11 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
         }
         NSLog(@"GameCenter score report success");
     }];
+    
+    LKLeaderboard *leaderboard = self.leaderboards[name];
+    LKPlayerScore *ps = [leaderboard findScoreWithAccountId:self.localPlayer.account_id];
+    ps.score = scoreValue;
+    [leaderboard setScores:leaderboard.sortedScores];
 }
 
 @end

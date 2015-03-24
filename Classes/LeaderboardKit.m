@@ -11,6 +11,8 @@
 #import <CloudKit/CloudKit.h>
 #import "LeaderboardKit.h"
 
+NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification";
+
 @interface LeaderboardKit ()
 
 @property (nonatomic, strong) NSMutableArray *accounts;
@@ -294,14 +296,19 @@
         }
         LKLeaderboard *leaderboard = [[LKLeaderboard alloc] init];
         [leaderboard setScores:scores];
-        [self setCommonLeaderboard:leaderboard forName:name];
+        if (![leaderboard.sortedScores isEqualToArray:[self.commonLeaderboards[name] sortedScores]]) {
+            [self setCommonLeaderboard:leaderboard forName:name];
+            [[NSNotificationCenter defaultCenter] postNotificationName:LKLeaderboardChangedNotification object:name];
+        }
     }
 }
 
 - (void)setupLeaderboardNames:(NSArray *)leaderboardNames
 {
-    for (NSString *name in leaderboardNames)
+    for (NSString *name in leaderboardNames) {
         [self setCloudLeaderboard:[[LKLeaderboard alloc] init] forName:name];
+        [self setCommonLeaderboard:[[LKLeaderboard alloc] init] forName:name];
+    }
 }
 
 - (void)updateLeaderboard:(NSString *)leaderboardName
@@ -317,7 +324,7 @@
         for (CKRecord *record in results) {
             LKPlayer *player = [[LKPlayer alloc] init];
             player.fullName = record[@"name"];
-            player.recordId = record.recordID;
+            player.recordID = record.recordID;
             player.record = record;
             LKPlayerScore *playerScore = [[LKPlayerScore alloc] init];
             playerScore.player = player;
@@ -333,6 +340,13 @@
 {
     for (NSString *leaderboardName in self.cloudLeaderboards.keyEnumerator)
         [self updateLeaderboard:leaderboardName];
+    
+    for (id<LKAccount> acc in self.accounts) {
+        if ([acc conformsToProtocol:@protocol(LKAccountWithLeaderboards)]) {
+            id<LKAccountWithLeaderboards> account = (id)acc;
+            [account requestLeaderboardsSuccess:nil failure:nil];
+        }
+    }
 }
 
 - (void)reportScore:(NSNumber *)score forName:(NSString *)name
@@ -347,7 +361,11 @@
         return [[CKRecord alloc] initWithRecordType:recordType recordID:scoreRef.recordID];
     }();
     
-    id<LKAccount> account = self.accounts.firstObject;
+    id<LKAccount> account = ^{
+        if ([self.accounts.firstObject isKindOfClass:[LKGameCenter class]])
+            return self.accounts.lastObject;
+        return self.accounts.firstObject;
+    }();
     if ([[account localPlayer] fullName] && ![[account localPlayer] screenName])
         record[@"name"] = [[account localPlayer] fullName];
     else if (![[account localPlayer] fullName] && [[account localPlayer] screenName])
@@ -378,6 +396,16 @@
             [account reportScore:score forName:name];
         }
     }
+    
+    // Update cloud and local leaderboards
+    for (NSDictionary *leaderboards in @[self.cloudLeaderboards,self.commonLeaderboards]) {
+        LKLeaderboard *leaderboard = leaderboards[name];
+        LKPlayerScore *ps = [leaderboard findScoreWithUserRecordID:self.userID];
+        ps.score = score;
+        [leaderboard setScores:leaderboard.sortedScores];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:LKLeaderboardChangedNotification object:name];
+    [self updateLeaderboards];
 }
 
 - (void)subscribeToLeaderboard:(NSString *)leaderboardName

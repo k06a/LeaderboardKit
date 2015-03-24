@@ -16,7 +16,7 @@
 @property (nonatomic, strong) NSString *account_id;
 @property (nonatomic, strong) NSString *fullName;
 @property (nonatomic, strong) NSString *screenName;
-@property (nonatomic, strong) CKRecordID *recordId;
+@property (nonatomic, strong) CKRecordID *recordID;
 @property (nonatomic, strong) CKRecord *record;
 @property (nonatomic, strong) NSString *accountType;
 

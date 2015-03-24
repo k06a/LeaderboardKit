@@ -17,11 +17,19 @@
 
 @implementation LKLeaderboard
 
-- (LKPlayerScore *)findAccountWithId:(NSString *)account_id
+- (LKPlayerScore *)findScoreWithAccountId:(NSString *)account_id
 {
-    for (NSInteger i = 0; i < self.sortedScores.count; i++) {
-        LKPlayerScore *score = self.sortedScores[i];
+    for (LKPlayerScore *score in self.sortedScores) {
         if ([score.player.account_id isEqualToString:account_id])
+            return score;
+    }
+    return nil;
+}
+
+- (LKPlayerScore *)findScoreWithUserRecordID:(CKRecordID *)recordID
+{
+    for (LKPlayerScore *score in self.sortedScores) {
+        if ([score.player.recordID isEqual:recordID])
             return score;
     }
     return nil;

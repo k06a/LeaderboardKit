@@ -1,5 +1,5 @@
 //
-//  LKLeaderboardViewController.h
+//  LKScoreTableViewCell.h
 //  LeaderboardKit
 //
 //  Created by Anton Bukov on 24.03.15.
@@ -8,8 +8,8 @@
 
 #import <UIKit/UIKit.h>
 
-@interface LKLeaderboardViewController : UITableViewController
+@interface LKScoreTableViewCell : UITableViewCell
 
-@property (nonatomic, strong) NSString *leaderboardName;
+@property (nonatomic, readonly) UILabel *rankLabel;
 
 @end

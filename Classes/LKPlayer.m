@@ -13,7 +13,7 @@
 
 - (BOOL)isEqualToPlayer:(LKPlayer *)player
 {
-    return [self.recordId isEqual:[player recordId]]
+    return [self.recordID isEqual:[player recordID]]
         || [self.account_id isEqual:[player account_id]];
 }
 
@@ -27,5 +27,11 @@
 //
 
 @implementation LKPlayerScore
+
+- (BOOL)isEqual:(id)object
+{
+    return [self.player isEqual:[object player]]
+        && [self.score isEqual:[object score]];
+}
 
 @end

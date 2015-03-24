@@ -1,9 +1,9 @@
 //
 //  LKLeaderboardsViewController.m
-//  Pods
+//  LeaderboardKit
 //
-//  Created by Антон Буков on 22.03.15.
-//
+//  Created by Anton Bukov on 24.03.15.
+//  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
 #import "LeaderboardKit.h"
@@ -32,15 +32,19 @@
     NSString *key = keys[indexPath.row];
     LKLeaderboard *leaderboard = [LeaderboardKit shared].commonLeaderboards[key];
     
-    NSInteger myIndex = [leaderboard.sortedScores indexOfObjectPassingTest:^BOOL(LKPlayerScore *ps, NSUInteger idx, BOOL *stop) {
-        return [ps.player.recordId isEqual:[LeaderboardKit shared].userRecord.recordID];
-    }];
+    NSInteger myIndex = leaderboard.sortedScores ? [leaderboard.sortedScores indexOfObjectPassingTest:^BOOL(LKPlayerScore *ps, NSUInteger idx, BOOL *stop) {
+        for (id<LKAccount> account in [LeaderboardKit shared].accounts) {
+            if ([[account localPlayer].account_id isEqualToString:ps.player.account_id])
+                return YES;
+        }
+        return [ps.player.recordID isEqual:[LeaderboardKit shared].userRecord.recordID];
+    }] : NSNotFound;
     
     cell.textLabel.text = key;
     if (myIndex == NSNotFound)
         cell.detailTextLabel.text = [NSString stringWithFormat:NSLocalizedString(@"LK_UI_UNRANKED", @""),@(leaderboard.sortedScores.count)];
     else
-        cell.detailTextLabel.text = [NSString stringWithFormat:NSLocalizedString(@"LK_UI_RANKED", @""),@(myIndex+1),@(leaderboard.sortedScores.count)];
+        cell.detailTextLabel.text = [NSString stringWithFormat:NSLocalizedString(@"LK_UI_RANKED", @""),@(myIndex+1),@(leaderboard.sortedScores.count-1)];
     
     return cell;
 }
@@ -49,10 +53,8 @@
 {
     NSArray *keys = [[LeaderboardKit shared].commonLeaderboards.allKeys sortedArrayUsingSelector:@selector(compare:)];
     NSString *key = keys[indexPath.row];
-    LKLeaderboard *leaderboard = [LeaderboardKit shared].commonLeaderboards[key];
     
     LKLeaderboardViewController *controller = [[LKLeaderboardViewController alloc] init];
-    controller.leaderboard = leaderboard;
     controller.leaderboardName = key;
     [self.navigationController pushViewController:controller animated:YES];
 }
@@ -76,6 +78,12 @@
     
     [[LeaderboardKit shared] whenInitialized:^{
         [self.tableView reloadData];
+    }];
+    
+    __weak typeof(self) weakSelf = self;
+    [[NSNotificationCenter defaultCenter] addObserverForName:LKLeaderboardChangedNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note)
+    {
+        [weakSelf.tableView reloadData];
     }];
 }
 

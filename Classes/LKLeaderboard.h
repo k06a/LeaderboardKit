@@ -6,13 +6,15 @@
 //  Copyright (c) 2015 Codeless Solutions. All rights reserved.
 //
 
+#import <CloudKit/CloudKit.h>
 #import <Foundation/Foundation.h>
 
 @interface LKLeaderboard : NSObject
 
 @property (nonatomic, readonly) NSArray *sortedScores;
 
-- (LKPlayerScore *)findAccountWithId:(NSString *)account_id;
+- (LKPlayerScore *)findScoreWithAccountId:(NSString *)account_id;
+- (LKPlayerScore *)findScoreWithUserRecordID:(CKRecordID *)recordID;
 - (void)setScores:(NSArray *)scores;
 
 @end
