@@ -7,6 +7,7 @@
 //
 
 #import <GameKit/GameKit.h>
+#import <SAMCache/SAMCache.h>
 #import "LeaderboardKit.h"
 #import "LKGameCenter.h"
 
@@ -216,6 +217,31 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
     LKPlayerScore *ps = [leaderboard findScoreWithAccountId:self.localPlayer.account_id];
     ps.score = scoreValue;
     [leaderboard setScores:leaderboard.sortedScores];
+}
+
+- (UIImage *)cachedPhotoForAccountId:(NSString *)account_id
+{
+    return [[SAMCache sharedCache] imageForKey:account_id];
+}
+
+- (void)requestPhotoForAccountId:(NSString *)account_id
+                         success:(void(^)(UIImage *image))success
+                         failure:(void(^)(NSError *error))failure
+{
+    [GKPlayer loadPlayersForIdentifiers:@[account_id] withCompletionHandler:^(NSArray *players, NSError *error) {
+        GKPlayer *player = players.firstObject;
+        [player loadPhotoForSize:(GKPhotoSizeNormal) withCompletionHandler:^(UIImage *photo, NSError *error) {
+            if (photo) { // it can be non-nil and error if cached by GameKit
+                [[SAMCache sharedCache] setImage:photo forKey:account_id];
+                if (success)
+                    success(photo);
+                return;
+            }
+            
+            if (failure)
+                failure(error);
+        }];
+    }];
 }
 
 @end

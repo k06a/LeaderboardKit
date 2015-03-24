@@ -21,6 +21,11 @@
 - (void)requestFriendsSuccess:(void(^)())success
                       failure:(void(^)(NSError *error))failure;
 
+- (UIImage *)cachedPhotoForAccountId:(NSString *)account_id;
+- (void)requestPhotoForAccountId:(NSString *)account_id
+                         success:(void(^)(UIImage *image))success
+                         failure:(void(^)(NSError *error))failure;
+
 @end
 
 //

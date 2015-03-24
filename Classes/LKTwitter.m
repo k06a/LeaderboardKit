@@ -8,6 +8,7 @@
 
 #import <Accounts/Accounts.h>
 #import <Social/Social.h>
+#import <SAMCache/SAMCache.h>
 #import "LeaderboardKit.h"
 #import "LKTwitter.h"
 
@@ -161,6 +162,54 @@
             if (success)
                 success();
         });
+    }];
+}
+
+- (UIImage *)cachedPhotoForAccountId:(NSString *)account_id
+{
+    return [[SAMCache sharedCache] imageForKey:account_id];
+}
+
+- (void)requestPhotoForAccountId:(NSString *)account_id
+                         success:(void(^)(UIImage *image))success
+                         failure:(void(^)(NSError *error))failure
+{
+    SLRequest *request = [SLRequest requestForServiceType:SLServiceTypeTwitter requestMethod:SLRequestMethodGET URL:[NSURL URLWithString:@"https://api.twitter.com/1.1/users/lookup.json?"] parameters:@{@"user_id":account_id,@"include_entities":@NO}];
+    request.account = self.account;
+    
+    [request performRequestWithHandler:^(NSData *responseData, NSHTTPURLResponse *urlResponse, NSError *error)
+    {
+        if (error || responseData == nil) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (failure)
+                    failure(error);
+            });
+            return;
+        }
+        
+        NSError *err = nil;
+        id json = [NSJSONSerialization JSONObjectWithData:responseData options:0 error:&err];
+        if (err || json == nil) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (failure)
+                    failure(err);
+            });
+            return;
+        }
+        
+        NSString *photoUrl = json[@"profile_image_url"];
+        [NSURLConnection sendAsynchronousRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:photoUrl]] queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
+        {
+            if (connectionError) {
+                if (failure)
+                    failure(connectionError);
+                return;
+            }
+            UIImage *image = [UIImage imageWithData:data];
+            [[SAMCache sharedCache] setImage:image forKey:account_id];
+            if (success)
+                success(image);
+        }];
     }];
 }
 
