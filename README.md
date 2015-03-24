@@ -9,22 +9,31 @@ iOS and OSX social leaderboards and highscore push notifications on top of Apple
 3. Setup leaderboards inside `application:didFinishLaunchingWithOptions:`:
 
    ```objective-c
+   LKGameCenterIdentifierToNameTranform = ^NSString *(NSString *identifier){
+       return [identifier substringFromIndex:@"scores.".length];
+   };
+   LKGameCenterNameToIdentifierTranform = ^NSString *(NSString *name){
+       return [@"scores." stringByAppendingString:name];
+   };
    [[LeaderboardKit shared] setupLeaderboardNames:@[@"3x3",@"4x4",@"5x5"]];
    ```
+   for leaderboard identifiers: `scores.3x3`, `scores.4x4` and `scores.5x5`
    
 ## Integrate GameCenter when LeaderboardKit become ready
 
 ```objective-c
 [[LeaderboardKit shared] whenInitialized:^{
-    if (![[LeaderboardKit shared] accountForIdentifier:LKAccountIdentifierGameCenter]) {
-        id<LKAccount> account = [[LKGameCenterAccount alloc] initWithUserRecord:[LeaderboardKit shared].userRecord];
-        [account requestAuthWithViewController:self success:^{
-            [[LeaderboardKit shared] setAccount:account forIdentifier:LKAccountIdentifierGameCenter];
-            [[[UIAlertView alloc] initWithTitle:@"Success" message:@"GameCenter account connected" delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
-        } failure:^(NSError *error) {
-            [[[UIAlertView alloc] initWithTitle:@"Error" message:error.localizedDescription delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
-        }];
+    id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:[LKGameCenter class]];
+    if (!account) {
+        account = [[LKGameCenter alloc] init];
+        [[LeaderboardKit shared] addAccount:account];
     }
+    
+    [account requestAuthWithViewController:self success:^{
+        [[[UIAlertView alloc] initWithTitle:@"Success" message:@"GameCenter account connected" delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
+    } failure:^(NSError *error) {
+        [[[UIAlertView alloc] initWithTitle:@"Error" message:error.localizedDescription delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
+    }];
 }];
 ```
 
@@ -38,7 +47,7 @@ iOS and OSX social leaderboards and highscore push notifications on top of Apple
       self.connectTwitterButton.enabled = ![[LeaderboardKit shared] accountForIdentifier:LKAccountIdentifierTwitter];
   }];
   ```
-2. Connect new social when needed (Twitter, for example):
+2. Connect ane social when player wants (Twitter, for example):
 
   ```objective-c
   if ([LeaderboardKit shared].isInitialized && ![[LeaderboardKit shared] accountForIdentifier:LKAccountIdentifierTwitter])
