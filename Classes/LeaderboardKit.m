@@ -141,7 +141,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 
 - (void)checkFriendsChangedRecursively
 {
-    if (!self.isInitialized || [self idsOrPredicate] == nil) {
+    if (!self.isInitialized || [self idsPredicates].count == 0) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self checkFriendsChangedRecursively];
         });
@@ -156,16 +156,23 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     }();
     
     if (friends_changed) {
-        for (NSString *leaderboardName in @[@"3x3",@"4x4",@"5x5"]) {
-            NSInteger myPoints = [[NSUserDefaults standardUserDefaults] integerForKey:[@"max_" stringByAppendingString:leaderboardName]];
-            [self subscribeToLeaderboard:leaderboardName withScore:@(myPoints) success:nil failure:nil];
-            [self.database saveRecord:self.userRecord completionHandler:^(CKRecord *record, NSError *error) {
-                if (error) {
-                    NSLog(@"User record saving error: %@", error);
-                    return;
-                }
-                NSLog(@"User record saving success");
-            }];
+        [self.database saveRecord:self.userRecord completionHandler:^(CKRecord *record, NSError *error) {
+            if (error) {
+                NSLog(@"User record saving error: %@", error);
+                return;
+            }
+            NSLog(@"User record saving success");
+        }];
+        
+        LKPlayerScore *localScore = ^LKPlayerScore *{
+            for (NSString *name in self.commonLeaderboards)
+                for (LKPlayerScore *score in [self.commonLeaderboards[name] sortedScores])
+                    if (score.player.isLocalPlayer)
+                        return score;
+            return nil;
+        }();
+        if (localScore) {
+            [self subscribeToLeaderboardsScore:localScore.score success:nil failure:nil];
         }
     }
     
@@ -314,26 +321,25 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 - (void)updateLeaderboard:(NSString *)leaderboardName
 {
     NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
-    NSPredicate *predicate = [self idsOrPredicate];
-    if (predicate == nil)
-        return;
-    CKQuery *query = [[CKQuery alloc] initWithRecordType:recordType predicate:predicate];
-    query.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"score" ascending:NO]];
-    [self.database performQuery:query inZoneWithID:nil completionHandler:^(NSArray *results, NSError *error) {
-        NSMutableArray *scores = [NSMutableArray array];
-        for (CKRecord *record in results) {
-            LKPlayer *player = [[LKPlayer alloc] init];
-            player.fullName = record[@"name"];
-            player.recordID = record.recordID;
-            player.record = record;
-            LKPlayerScore *playerScore = [[LKPlayerScore alloc] init];
-            playerScore.player = player;
-            playerScore.score = record[@"score"];
-            [scores addObject:playerScore];
-        }
-        LKLeaderboard *leaderboard = [self cloudLeaderboardForName:leaderboardName];
-        [leaderboard setScores:scores];
-    }];
+    for (NSPredicate *predicate in [self idsPredicates]) {
+        CKQuery *query = [[CKQuery alloc] initWithRecordType:recordType predicate:predicate];
+        query.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"score" ascending:NO]];
+        [self.database performQuery:query inZoneWithID:nil completionHandler:^(NSArray *results, NSError *error) {
+            NSMutableArray *scores = [NSMutableArray array];
+            for (CKRecord *record in results) {
+                LKPlayer *player = [[LKPlayer alloc] init];
+                player.fullName = record[@"name"];
+                player.recordID = record.recordID;
+                player.record = record;
+                LKPlayerScore *playerScore = [[LKPlayerScore alloc] init];
+                playerScore.player = player;
+                playerScore.score = record[@"score"];
+                [scores addObject:playerScore];
+            }
+            LKLeaderboard *leaderboard = [self cloudLeaderboardForName:leaderboardName];
+            [leaderboard setScores:scores];
+        }];
+    }
 }
 
 - (void)updateLeaderboards
@@ -406,6 +412,17 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     }
     [[NSNotificationCenter defaultCenter] postNotificationName:LKLeaderboardChangedNotification object:name];
     [self updateLeaderboards];
+    
+    [self subscribeToLeaderboardsScore:score success:nil failure:nil];
+}
+
+- (void)subscribeToLeaderboardsScore:(NSNumber *)score
+                             success:(void(^)())success
+                             failure:(void(^)(NSError *))failure
+{
+    for (NSString *leaderboardName in self.cloudLeaderboards) {
+        [self subscribeToLeaderboard:leaderboardName withScore:score success:nil failure:nil];
+    }
 }
 
 - (void)subscribeToLeaderboard:(NSString *)leaderboardName
@@ -413,42 +430,49 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                        success:(void(^)())success
                        failure:(void(^)(NSError *))failure
 {
+    NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
     if (self.accounts.count == 0)
         return;
-    
-    NSPredicate *scorePredicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score <= %@)", myScore, myScore];
-    NSPredicate *predicate = [[NSCompoundPredicate alloc] initWithType:NSAndPredicateType subpredicates:@[scorePredicate,self.idsOrPredicate]];
     
     CKNotificationInfo *notificationInfo = [CKNotificationInfo new];
     notificationInfo.alertLocalizationKey = [NSString stringWithFormat:@"LK_NOTIFICATION_%@",leaderboardName];
     notificationInfo.alertLocalizationArgs = @[@"name",@"score"];
     notificationInfo.soundName = @"Party.aiff";
     notificationInfo.shouldBadge = YES;
+
+    NSPredicate *scorePredicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score <= %@)", myScore, myScore];
     
-    NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
-    CKSubscription *subs = [[CKSubscription alloc] initWithRecordType:recordType predicate:predicate options:(CKSubscriptionOptionsFiresOnRecordUpdate|CKSubscriptionOptionsFiresOnRecordCreation)];
-    subs.notificationInfo = notificationInfo;
+    NSMutableArray *subs = [NSMutableArray array];
+    for (NSPredicate *idsPredicate in [self idsPredicates]) {
+        NSPredicate *predicate = [[NSCompoundPredicate alloc] initWithType:NSAndPredicateType subpredicates:@[scorePredicate,idsPredicate]];
+        
+        CKSubscription *sub = [[CKSubscription alloc] initWithRecordType:recordType predicate:predicate options:(CKSubscriptionOptionsFiresOnRecordUpdate|CKSubscriptionOptionsFiresOnRecordCreation)];
+        sub.notificationInfo = notificationInfo;
+        [subs addObject:sub];
+    }
     
     void(^saveSubscriptionBlock)() = ^{
-        [self.database saveSubscription:subs completionHandler:^(CKSubscription *subscription, NSError *error)
-         {
-             if (error) {
-                 NSLog(@"CloudKit subscription saving error: %@", error.localizedDescription);
-                 if (failure)
-                     failure(error);
-                 return;
-             }
-             NSLog(@"CloudKit subscription saving success!");
-             if (success)
-                 success();
-         }];
+        for (CKSubscription *sub in subs) {
+            [self.database saveSubscription:sub completionHandler:^(CKSubscription *subscription, NSError *error)
+            {
+                if (error) {
+                    NSLog(@"CloudKit subscription saving error: %@", error.localizedDescription);
+                    if (failure)
+                        failure(error);
+                    return;
+                }
+                
+                NSLog(@"CloudKit subscription saving success!");
+                if (success)
+                    success();
+            }];
+            
+        }
     };
     
     [self.database fetchAllSubscriptionsWithCompletionHandler:^(NSArray *subscriptions, NSError *error) {
         if (subscriptions.count == 0) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                saveSubscriptionBlock();
-            });
+            saveSubscriptionBlock();
         }
         
         __block NSInteger subscriptionCount = subscriptions.count;
@@ -456,9 +480,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
             if ([sub.recordType isEqualToString:recordType]) {
                 [self.database deleteSubscriptionWithID:sub.subscriptionID completionHandler:^(NSString *subscriptionID, NSError *error) {
                     if (--subscriptionCount == 0) {
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            saveSubscriptionBlock();
-                        });
+                        saveSubscriptionBlock();
                     }
                 }];
             } else
@@ -467,19 +489,24 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     }];
 }
 
-- (NSPredicate *)idsOrPredicate
+- (NSArray *)idsPredicates
 {
     NSMutableArray *idsPredicates = [NSMutableArray array];
     for (id<LKAccount> account in self.accounts) {
         NSString *key = [NSString stringWithFormat:@"%@_id",[account class]];
-        NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K IN %@",key,[account friend_ids]];
-        [idsPredicates addObject:predicate];
+        NSArray *ids = [account friend_ids];
+        while (ids.count) {
+            NSInteger count = MIN(ids.count, 256);
+            NSArray *subids = [ids subarrayWithRange:NSMakeRange(0, count)];
+            ids = [ids subarrayWithRange:NSMakeRange(count, ids.count - count)];
+            
+            NSPredicate *predicate = [NSPredicate predicateWithFormat:@"%K IN %@",key,subids];
+            [idsPredicates addObject:predicate];
+        }
     }
     if (idsPredicates.count == 0)
         return nil;
-    if (idsPredicates.count == 1)
-        return idsPredicates.firstObject;
-    return [[NSCompoundPredicate alloc] initWithType:NSOrPredicateType subpredicates:idsPredicates];
+    return idsPredicates;
 }
 
 @end

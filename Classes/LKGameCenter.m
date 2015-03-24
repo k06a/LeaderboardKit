@@ -221,7 +221,8 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
 
 - (UIImage *)cachedPhotoForAccountId:(NSString *)account_id
 {
-    return [[SAMCache sharedCache] imageForKey:account_id];
+    NSString *key = [NSString stringWithFormat:@"LKGameCenter_%@",account_id];
+    return [[SAMCache sharedCache] imageForKey:key];
 }
 
 - (void)requestPhotoForAccountId:(NSString *)account_id
@@ -232,7 +233,8 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
         GKPlayer *player = players.firstObject;
         [player loadPhotoForSize:(GKPhotoSizeNormal) withCompletionHandler:^(UIImage *photo, NSError *error) {
             if (photo) { // it can be non-nil and error if cached by GameKit
-                [[SAMCache sharedCache] setImage:photo forKey:account_id];
+                NSString *key = [NSString stringWithFormat:@"LKGameCenter_%@",account_id];
+                [[SAMCache sharedCache] setImage:photo forKey:key];
                 if (success)
                     success(photo);
                 return;

@@ -7,9 +7,60 @@
 //
 
 #import <CloudKit/CloudKit.h>
+#import "LeaderboardKit.h"
 #import "LKPlayer.h"
 
 @implementation LKPlayer
+
+- (BOOL)isLocalPlayer
+{
+    for (id<LKAccount> account in [LeaderboardKit shared].accounts)
+        if ([[account localPlayer].account_id isEqualToString:[self idForAccountClass:[account class]]])
+            return YES;
+    return NO;
+}
+
+- (NSString *)idForAccountClass:(Class)accountClass
+{
+    NSString *key = [NSString stringWithFormat:@"%@_id", accountClass];
+    if (self.record)
+        return self.record[key];
+    if ([self.accountType isEqualToString:[accountClass description]])
+        return self.account_id;
+    return nil;
+}
+
+- (UIImage *)cachedImage
+{
+    // To become LKGameCenter last in array :)
+    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts sortedArrayUsingComparator:^NSComparisonResult(id<LKAccount> acc1, id<LKAccount> acc2) {
+        return [[[acc2 class] description] compare:[[acc1 class] description]];
+    }];
+    
+    for (id<LKAccount> account in sortedAccounts) {
+        NSString *account_id = [self idForAccountClass:[account class]];
+        if (account_id) {
+            UIImage *photo = [account cachedPhotoForAccountId:account_id];
+            if (photo)
+                return photo;
+        }
+    }
+    return nil;
+}
+
+- (void)requestPhoto:(void(^)(UIImage *))success
+{
+    // To become LKGameCenter last in array :)
+    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts sortedArrayUsingComparator:^NSComparisonResult(id<LKAccount> acc1, id<LKAccount> acc2) {
+        return [[[acc2 class] description] compare:[[acc1 class] description]];
+    }];
+    
+    for (id<LKAccount> account in sortedAccounts) {
+        NSString *account_id = [self idForAccountClass:[account class]];
+        if (account_id)
+            [account requestPhotoForAccountId:account_id success:success failure:nil];
+    }
+}
 
 - (BOOL)isEqualToPlayer:(LKPlayer *)player
 {

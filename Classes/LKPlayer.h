@@ -20,6 +20,11 @@
 @property (nonatomic, strong) CKRecord *record;
 @property (nonatomic, strong) NSString *accountType;
 
+@property (nonatomic, readonly) BOOL isLocalPlayer;
+- (NSString *)idForAccountClass:(Class)accountClass;
+- (UIImage *)cachedImage;
+- (void)requestPhoto:(void(^)(UIImage *))success;
+
 - (BOOL)isEqualToPlayer:(LKPlayer *)player;
 
 @end

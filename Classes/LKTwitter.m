@@ -74,7 +74,6 @@
                 self.account = account;
         }
         self.friend_ids = [LeaderboardKit shared].userRecord[@"LKTwitter_friend_ids"];
-        [self requestFriendsSuccess:nil failure:nil];
     }
     return self;
 }
@@ -119,10 +118,8 @@
     
     NSInteger accountIndex = buttonIndex - actionSheet.firstOtherButtonIndex;
     self.account = [self.accountStore accountsWithAccountType:self.accountType][accountIndex];
-    [self requestFriendsSuccess:nil failure:nil];
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.authSuccess)
-            self.authSuccess();
+        [self requestFriendsSuccess:self.authSuccess failure:self.authFailure];
     });
 }
 
@@ -167,7 +164,8 @@
 
 - (UIImage *)cachedPhotoForAccountId:(NSString *)account_id
 {
-    return [[SAMCache sharedCache] imageForKey:account_id];
+    NSString *key = [NSString stringWithFormat:@"LKTwitter_%@",account_id];
+    return [[SAMCache sharedCache] imageForKey:key];
 }
 
 - (void)requestPhotoForAccountId:(NSString *)account_id
@@ -206,7 +204,8 @@
                 return;
             }
             UIImage *image = [UIImage imageWithData:data];
-            [[SAMCache sharedCache] setImage:image forKey:account_id];
+            NSString *key = [NSString stringWithFormat:@"LKTwitter_%@",account_id];
+            [[SAMCache sharedCache] setImage:image forKey:key];
             if (success)
                 success(image);
         }];

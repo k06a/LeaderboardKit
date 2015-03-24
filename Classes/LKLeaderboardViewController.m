@@ -10,6 +10,23 @@
 #import "LKScoreTableViewCell.h"
 #import "LKLeaderboardViewController.h"
 
+@interface UIImage (PhoenixMaster)
+@end
+@implementation UIImage (PhoenixMaster)
+- (UIImage *)makeThumbnailOfSize:(CGSize)size
+{
+    UIGraphicsBeginImageContextWithOptions(size, NO, [UIScreen mainScreen].scale);
+    [self drawInRect:CGRectMake(0, 0, size.width, size.height)];
+    UIImage *newThumbnail = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    if (newThumbnail == nil)
+        NSLog(@"could not scale image");
+    return newThumbnail;
+}
+@end
+
+//
+
 @interface LKLeaderboardViewController ()
 
 @property (nonatomic, readonly) LKLeaderboard *leaderboard;
@@ -48,15 +65,21 @@
     cell.detailTextLabel.text = [NSString stringWithFormat:@"%@",score.score];
     cell.rankLabel.text = [NSString stringWithFormat:@"%@",@(indexPath.row + 1)];
     
-    BOOL isMe = ^{
-        for (id<LKAccount> account in [LeaderboardKit shared].accounts) {
-            if ([[account localPlayer].account_id isEqualToString:score.player.account_id])
-                return YES;
-        }
-        return NO;
-    }();
+    BOOL isMe = score.player.isLocalPlayer;
     cell.textLabel.textColor = isMe ? self.view.tintColor : [UIColor blackColor];
     cell.rankLabel.textColor = isMe ? self.view.tintColor : [UIColor blackColor];
+    
+    cell.imageView.image = [score.player.cachedImage makeThumbnailOfSize:CGSizeMake(32, 32)];
+    if (cell.imageView.image == nil) {
+        [score.player requestPhoto:^(UIImage *image) {
+            if (indexPath.row < [tableView numberOfRowsInSection:0]) {
+                [tableView beginUpdates];
+                [tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:(UITableViewRowAnimationAutomatic)];
+                [tableView endUpdates];
+            }
+        }];
+        cell.imageView.image = [[UIImage imageNamed:@"profile"] imageWithRenderingMode:(UIImageRenderingModeAlwaysTemplate)];
+    }
     
     return cell;
 }
