@@ -116,7 +116,7 @@
         return;
     }
     
-    NSInteger accountIndex = buttonIndex - actionSheet.firstOtherButtonIndex;
+    NSInteger accountIndex = buttonIndex - 1;
     self.account = [self.accountStore accountsWithAccountType:self.accountType][accountIndex];
     dispatch_async(dispatch_get_main_queue(), ^{
         [self requestFriendsSuccess:self.authSuccess failure:self.authFailure];
