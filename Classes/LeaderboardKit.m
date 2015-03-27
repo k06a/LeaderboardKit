@@ -65,6 +65,8 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 - (CKRecord *)userRecord
 {
     if (_userRecord == nil) {
+        if (self.userID == nil)
+            return nil;
         _userRecord = (id)[NSNull null];
         [self.database fetchRecordWithID:self.userID completionHandler:^(CKRecord *record, NSError *error) {
             if (error) {
@@ -209,6 +211,11 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 - (void)addAccount:(id<LKAccount>)account
 {
     [(id)self.accounts addObject:account];
+}
+
+- (void)removeAccount:(id<LKAccount>)account
+{
+    [(id)self.accounts removeObject:account];
 }
 
 - (id<LKAccount>)accountWithPredicate:(BOOL(^)(id<LKAccount> account))predicate
@@ -359,13 +366,33 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 {
     NSString *score_key = [NSString stringWithFormat:@"LK_score_%@",name];
     CKReference *scoreRef = self.userRecord[score_key];
+    if (scoreRef.recordID == nil) {
+        NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",name];
+        CKRecord *record = [[CKRecord alloc] initWithRecordType:recordType];
+        [self reportScore:score forName:name record:record];
+        return;
+    }
     
-    NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",name];
-    CKRecord *record = ^{
-        if (scoreRef.recordID == nil)
-            return [[CKRecord alloc] initWithRecordType:recordType];
-        return [[CKRecord alloc] initWithRecordType:recordType recordID:scoreRef.recordID];
-    }();
+    [self.database fetchRecordWithID:scoreRef.recordID completionHandler:^(CKRecord *record, NSError *error) {
+        if (error) {
+            NSLog(@"Error: %@", error);
+            [self reportScore:score forName:name];
+            return;
+        }
+        [self reportScore:score forName:name record:record];
+    }];
+}
+
+- (void)reportScore:(NSNumber *)score forName:(NSString *)name record:(CKRecord *)record
+{
+    if (record == nil)
+        return;
+    
+    if ([record[@"score"] isKindOfClass:[NSNumber class]]
+        && [score compare:record[@"score"]] == NSOrderedAscending)
+    {
+        return;
+    }
     
     id<LKAccount> account = ^{
         if ([self.accounts.firstObject isKindOfClass:[LKGameCenter class]])
@@ -378,7 +405,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         record[@"name"] = [[account localPlayer] screenName];
     else
         record[@"name"] = [NSString stringWithFormat:@"%@ (%@)",[[account localPlayer] fullName],[[account localPlayer] screenName]];
-    record[@"prev_score"] = record[@"score"];
+    record[@"prev_score"] = record[@"score"] ?: 0;
     record[@"score"] = score;
     for (id<LKAccount> account in self.accounts) {
         NSString *key = [NSString stringWithFormat:@"%@_id", [account class]];
@@ -387,9 +414,11 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     
     [self.database saveRecord:record completionHandler:^(CKRecord *record, NSError *error) {
         if (error) {
-            [self reportScore:score forName:name];
+            NSLog(@"Error: %@", error);
+            [self reportScore:score forName:name record:record];
             return;
         }
+        NSString *score_key = [NSString stringWithFormat:@"LK_score_%@",name];
         if (self.userRecord[score_key] == nil)
             self.userRecord[score_key] = [[CKReference alloc] initWithRecordID:record.recordID action:(CKReferenceActionNone)];
         
@@ -496,7 +525,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         NSString *key = [NSString stringWithFormat:@"%@_id",[account class]];
         NSArray *ids = [account friend_ids];
         while (ids.count) {
-            NSInteger count = MIN(ids.count, 256);
+            NSInteger count = MIN(ids.count, 240);
             NSArray *subids = [ids subarrayWithRange:NSMakeRange(0, count)];
             ids = [ids subarrayWithRange:NSMakeRange(count, ids.count - count)];
             

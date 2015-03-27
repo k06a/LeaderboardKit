@@ -31,6 +31,7 @@ extern NSString *LKLeaderboardChangedNotification;
 
 - (NSArray *)accounts;
 - (void)addAccount:(id<LKAccount>)account;
+- (void)removeAccount:(id<LKAccount>)account;
 - (id<LKAccount>)accountWithPredicate:(BOOL(^)(id<LKAccount> account))predicate;
 - (id<LKAccount>)accountWithClass:(Class)class;
 
