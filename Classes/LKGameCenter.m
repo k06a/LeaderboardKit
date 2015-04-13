@@ -53,9 +53,12 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
     if (self.account.playerID == nil)
         return;
     
-    [LeaderboardKit shared].userRecord[@"LKGameCenter_id"] = self.localPlayer.account_id;
-    [LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"] = self.localPlayer.fullName;
-    [LeaderboardKit shared].userRecord[@"LKGameCenter_screen_name"] = self.localPlayer.screenName;
+    if (![[LeaderboardKit shared].userRecord[@"LKGameCenter_id"] isEqualToString:self.localPlayer.account_id])
+        [LeaderboardKit shared].userRecord[@"LKGameCenter_id"] = self.localPlayer.account_id;
+    if (![[LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"] isEqualToString:self.localPlayer.fullName])
+        [LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"] = self.localPlayer.fullName;
+    if (![[LeaderboardKit shared].userRecord[@"LKGameCenter_screen_name"] isEqualToString:self.localPlayer.screenName])
+        [LeaderboardKit shared].userRecord[@"LKGameCenter_screen_name"] = self.localPlayer.screenName;
 }
 
 - (BOOL)isAuthorized
@@ -196,13 +199,7 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
 - (void)reportScore:(NSNumber *)scoreValue forName:(NSString *)name
 {
     NSString *identifier = LKGameCenterNameToIdentifierTranform(name);
-    GKScore *score = [GKScore alloc];
-    if ([score respondsToSelector:@selector(initWithLeaderboardIdentifier:)])
-        score = [score initWithLeaderboardIdentifier:identifier];
-    else {
-        score = [score init];
-        score.category = identifier;
-    }
+    GKScore *score = [[GKScore alloc] initWithLeaderboardIdentifier:identifier];
 
     score.value = scoreValue.longLongValue;
     [GKScore reportScores:@[score] withCompletionHandler:^(NSError *error) {

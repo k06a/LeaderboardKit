@@ -24,6 +24,7 @@
 - (NSString *)idForAccountClass:(Class)accountClass;
 - (UIImage *)cachedImage;
 - (void)requestPhoto:(void(^)(UIImage *))success;
+@property (nonatomic, readonly) NSString *visibleName;
 
 - (BOOL)isEqualToPlayer:(LKPlayer *)player;
 

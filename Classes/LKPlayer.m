@@ -33,9 +33,10 @@
 - (UIImage *)cachedImage
 {
     // To become LKGameCenter last in array :)
-    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts sortedArrayUsingComparator:^NSComparisonResult(id<LKAccount> acc1, id<LKAccount> acc2) {
-        return [[[acc2 class] description] compare:[[acc1 class] description]];
-    }];
+    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id<LKAccount> acc, NSDictionary *bindings) {
+        return ![acc isKindOfClass:[LKGameCenter class]];
+    }]];
+    sortedAccounts = [sortedAccounts arrayByAddingObject:[[LeaderboardKit shared] accountWithClass:[LKGameCenter class]]];
     
     for (id<LKAccount> account in sortedAccounts) {
         NSString *account_id = [self idForAccountClass:[account class]];
@@ -51,15 +52,23 @@
 - (void)requestPhoto:(void(^)(UIImage *))success
 {
     // To become LKGameCenter last in array :)
-    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts sortedArrayUsingComparator:^NSComparisonResult(id<LKAccount> acc1, id<LKAccount> acc2) {
-        return [[[acc2 class] description] compare:[[acc1 class] description]];
-    }];
+    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id<LKAccount> acc, NSDictionary *bindings) {
+        return ![acc isKindOfClass:[LKGameCenter class]];
+    }]];
+    sortedAccounts = [sortedAccounts arrayByAddingObject:[[LeaderboardKit shared] accountWithClass:[LKGameCenter class]]];
     
     for (id<LKAccount> account in sortedAccounts) {
         NSString *account_id = [self idForAccountClass:[account class]];
         if (account_id)
             [account requestPhotoForAccountId:account_id success:success failure:nil];
     }
+}
+
+- (NSString *)visibleName
+{
+    if (self.fullName.length > 0 && self.screenName.length > 0)
+        return [NSString stringWithFormat:@"%@ (%@)", self.fullName, self.screenName];
+    return (self.fullName.length > 0) ? self.fullName : self.screenName;
 }
 
 - (BOOL)isEqualToPlayer:(LKPlayer *)player

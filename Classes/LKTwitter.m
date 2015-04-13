@@ -47,7 +47,7 @@
     _account = account;
     self.localPlayer = ^{
         LKPlayer *p = [[LKPlayer alloc] init];
-        p.account_id = [[account valueForKey:@"properties"] valueForKey:@"user_id"];
+        p.account_id = [[[account valueForKey:@"properties"] valueForKey:@"user_id"] description];
         p.fullName = account.userFullName;
         p.screenName = account.username;
         p.recordID = [LeaderboardKit shared].userRecord.recordID;
@@ -55,9 +55,12 @@
         return p;
     }();
     
-    [LeaderboardKit shared].userRecord[@"LKTwitter_id"] = self.localPlayer.account_id;
-    [LeaderboardKit shared].userRecord[@"LKTwitter_full_name"] = self.localPlayer.fullName;
-    [LeaderboardKit shared].userRecord[@"LKTwitter_screen_name"] = self.localPlayer.screenName;
+    if (![[LeaderboardKit shared].userRecord[@"LKTwitter_id"] isEqualToString:self.localPlayer.account_id])
+        [LeaderboardKit shared].userRecord[@"LKTwitter_id"] = self.localPlayer.account_id;
+    if (![[LeaderboardKit shared].userRecord[@"LKTwitter_full_name"] isEqualToString:self.localPlayer.fullName])
+        [LeaderboardKit shared].userRecord[@"LKTwitter_full_name"] = self.localPlayer.fullName;
+    if (![[LeaderboardKit shared].userRecord[@"LKTwitter_screen_name"] isEqualToString:self.localPlayer.screenName])
+        [LeaderboardKit shared].userRecord[@"LKTwitter_screen_name"] = self.localPlayer.screenName;
 }
 
 - (BOOL)isAuthorized
@@ -68,9 +71,9 @@
 - (instancetype)init
 {
     if (self = [super init]) {
-        int64_t account_id = [[LeaderboardKit shared].userRecord[@"LKTwitter_id"] longLongValue];
+        NSString *account_id = [[LeaderboardKit shared].userRecord[@"LKTwitter_id"] description];
         for (ACAccount *account in [self.accountStore accountsWithAccountType:self.accountType]) {
-            if (account_id == [[[account valueForKey:@"properties"] valueForKey:@"user_id"] longLongValue])
+            if ([account_id isEqualToString:[[[account valueForKey:@"properties"] valueForKey:@"user_id"] description]])
                 self.account = account;
         }
         self.friend_ids = [LeaderboardKit shared].userRecord[@"LKTwitter_friend_ids"];

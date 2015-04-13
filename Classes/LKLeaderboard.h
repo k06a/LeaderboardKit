@@ -11,6 +11,7 @@
 
 @interface LKLeaderboard : NSObject
 
+@property (nonatomic, readonly) LKPlayerScore *localPlayerScore;
 @property (nonatomic, readonly) NSArray *sortedScores;
 
 - (LKPlayerScore *)findScoreWithAccountId:(NSString *)account_id;

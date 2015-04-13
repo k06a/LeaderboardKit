@@ -32,19 +32,12 @@
     NSString *key = keys[indexPath.row];
     LKLeaderboard *leaderboard = [LeaderboardKit shared].commonLeaderboards[key];
     
-    NSInteger myIndex = leaderboard.sortedScores ? [leaderboard.sortedScores indexOfObjectPassingTest:^BOOL(LKPlayerScore *ps, NSUInteger idx, BOOL *stop) {
-        for (id<LKAccount> account in [LeaderboardKit shared].accounts) {
-            if ([[account localPlayer].account_id isEqualToString:ps.player.account_id])
-                return YES;
-        }
-        return [ps.player.recordID isEqual:[LeaderboardKit shared].userRecord.recordID];
-    }] : NSNotFound;
-    
     cell.textLabel.text = key;
+    NSUInteger myIndex = (leaderboard.localPlayerScore == nil) ? NSNotFound : [leaderboard.sortedScores indexOfObject:leaderboard.localPlayerScore];
     if (myIndex == NSNotFound)
         cell.detailTextLabel.text = [NSString stringWithFormat:NSLocalizedString(@"LK_UI_UNRANKED", @""),@(leaderboard.sortedScores.count)];
     else
-        cell.detailTextLabel.text = [NSString stringWithFormat:NSLocalizedString(@"LK_UI_RANKED", @""),@(myIndex+1),@(leaderboard.sortedScores.count-1)];
+        cell.detailTextLabel.text = [NSString stringWithFormat:NSLocalizedString(@"LK_UI_RANKED", @""),@(myIndex+1),@(leaderboard.sortedScores.count)];
     
     return cell;
 }

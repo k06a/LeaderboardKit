@@ -85,6 +85,10 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 id<LKAccount> account = [[LKTwitter alloc] init];
                 [self addAccount:account];
             }
+            if ([_userRecord[@"LKFacebook_id"] length]) {
+                id<LKAccount> account = [[LKFacebook alloc] init];
+                [self addAccount:account];
+            }
             
             for (void(^block)() in self.whenInitializedBlocks)
                 block();
@@ -101,9 +105,6 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     static LeaderboardKit *shared = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        if ([UIDevice currentDevice].systemVersion.doubleValue < 8.0)
-            return;
-        
         shared = [[LeaderboardKit alloc] init];
         [shared whenInitialized:^{
             [shared checkFriendsChangedRecursively];
@@ -156,8 +157,33 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 return YES;
         return NO;
     }();
+    BOOL user_id_changed = ^{
+        for (NSString *name in self.commonLeaderboards) {
+            NSString *score_key = [NSString stringWithFormat:@"LK_score_%@",name];
+            CKReference *scoreRef = self.userRecord[score_key];
+            if (scoreRef.recordID == nil)
+                continue;
+
+            [self.database fetchRecordWithID:scoreRef.recordID completionHandler:^(CKRecord *scoreRecord, NSError *error) {
+                if (scoreRecord == nil || error)
+                    return;
+                for (id<LKAccount> account in self.accounts) {
+                    NSString *kid = [NSString stringWithFormat:@"%@_id", [account class]];
+                    scoreRecord[kid] = [account localPlayer].account_id;
+                }
+                [self.database saveRecord:scoreRecord completionHandler:nil];
+            }];
+        }
+        
+        for (id<LKAccount> account in self.accounts) {
+            NSString *kid = [NSString stringWithFormat:@"%@_id", [account class]];
+            if ([self.userRecord.changedKeys containsObject:kid])
+                return YES;
+        }
+        return NO;
+    }();
     
-    if (friends_changed) {
+    if (friends_changed || user_id_changed) {
         [self.database saveRecord:self.userRecord completionHandler:^(CKRecord *record, NSError *error) {
             if (error) {
                 NSLog(@"User record saving error: %@", error);
@@ -165,7 +191,9 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
             }
             NSLog(@"User record saving success");
         }];
-        
+    }
+    
+    if (friends_changed) {
         LKPlayerScore *localScore = ^LKPlayerScore *{
             for (NSString *name in self.commonLeaderboards)
                 for (LKPlayerScore *score in [self.commonLeaderboards[name] sortedScores])
@@ -176,6 +204,10 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         if (localScore) {
             [self subscribeToLeaderboardsScore:localScore.score success:nil failure:nil];
         }
+    }
+    
+    if (user_id_changed) {
+        [self updateLeaderboards];
     }
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -369,7 +401,10 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     if (scoreRef.recordID == nil) {
         NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",name];
         CKRecord *record = [[CKRecord alloc] initWithRecordType:recordType];
-        [self reportScore:score forName:name record:record];
+        [self reportScore:score forName:name record:record completion:^{
+            if (self.userRecord[score_key] == nil)
+                self.userRecord[score_key] = [[CKReference alloc] initWithRecordID:record.recordID action:(CKReferenceActionNone)];
+        }];
         return;
     }
     
@@ -379,17 +414,17 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
             [self reportScore:score forName:name];
             return;
         }
-        [self reportScore:score forName:name record:record];
+        [self reportScore:score forName:name record:record completion:nil];
     }];
 }
 
-- (void)reportScore:(NSNumber *)score forName:(NSString *)name record:(CKRecord *)record
+- (void)reportScore:(NSNumber *)score forName:(NSString *)name record:(CKRecord *)record completion:(void(^)())completion
 {
     if (record == nil)
         return;
     
     if ([record[@"score"] isKindOfClass:[NSNumber class]]
-        && [score compare:record[@"score"]] == NSOrderedAscending)
+        && [score compare:record[@"score"]] != NSOrderedDescending)
     {
         return;
     }
@@ -414,15 +449,14 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     
     [self.database saveRecord:record completionHandler:^(CKRecord *record, NSError *error) {
         if (error) {
-            NSLog(@"Error: %@", error);
-            [self reportScore:score forName:name record:record];
+            NSLog(@"Score saving error: %@", error);
+            [self reportScore:score forName:name record:record completion:completion];
             return;
         }
-        NSString *score_key = [NSString stringWithFormat:@"LK_score_%@",name];
-        if (self.userRecord[score_key] == nil)
-            self.userRecord[score_key] = [[CKReference alloc] initWithRecordID:record.recordID action:(CKReferenceActionNone)];
         
         [self updateLeaderboard:name];
+        if (completion)
+            completion();
     }];
     
     for (id<LKAccount> acc in self.accounts) {
@@ -435,12 +469,10 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     // Update cloud and local leaderboards
     for (NSDictionary *leaderboards in @[self.cloudLeaderboards,self.commonLeaderboards]) {
         LKLeaderboard *leaderboard = leaderboards[name];
-        LKPlayerScore *ps = [leaderboard findScoreWithUserRecordID:self.userID];
-        ps.score = score;
+        leaderboard.localPlayerScore.score = score;
         [leaderboard setScores:leaderboard.sortedScores];
     }
     [[NSNotificationCenter defaultCenter] postNotificationName:LKLeaderboardChangedNotification object:name];
-    [self updateLeaderboards];
     
     [self subscribeToLeaderboardsScore:score success:nil failure:nil];
 }
