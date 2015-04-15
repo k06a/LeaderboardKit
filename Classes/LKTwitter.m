@@ -49,7 +49,7 @@
         LKPlayer *p = [[LKPlayer alloc] init];
         p.account_id = [[[account valueForKey:@"properties"] valueForKey:@"user_id"] description];
         p.fullName = account.userFullName;
-        p.screenName = account.username;
+        p.screenName = [@"@" stringByAppendingString:account.username];
         p.recordID = [LeaderboardKit shared].userRecord.recordID;
         p.accountType = [[self class] description];
         return p;
@@ -79,6 +79,15 @@
         self.friend_ids = [LeaderboardKit shared].userRecord[@"LKTwitter_friend_ids"];
     }
     return self;
+}
+
+- (void)logoutAccount
+{
+    [LeaderboardKit shared].userRecord[@"LKTwitter_id"] = nil;
+    [LeaderboardKit shared].userRecord[@"LKTwitter_friend_ids"] = nil;
+    [LeaderboardKit shared].userRecord[@"LKTwitter_full_name"] = nil;
+    [LeaderboardKit shared].userRecord[@"LKTwitter_screen_name"] = nil;
+    [[LeaderboardKit shared] removeAccount:self];
 }
 
 - (void)requestAuthWithViewController:(UIViewController *)controller
@@ -190,14 +199,14 @@
         
         NSError *err = nil;
         id json = [NSJSONSerialization JSONObjectWithData:responseData options:0 error:&err];
-        if (err || json == nil) {
+        if (err || json == nil || ![json isKindOfClass:[NSDictionary class]]) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (failure)
                     failure(err);
             });
             return;
         }
-        
+
         NSString *photoUrl = json[@"profile_image_url"];
         [NSURLConnection sendAsynchronousRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:photoUrl]] queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError)
         {

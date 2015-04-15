@@ -14,6 +14,8 @@
 @property (nonatomic, readonly) LKPlayer *localPlayer;
 @property (nonatomic, readonly) NSArray *friend_ids;
 
+- (void)logoutAccount;
+
 - (void)requestAuthWithViewController:(UIViewController *)controller
                               success:(void(^)())success
                               failure:(void(^)(NSError *error))failure;

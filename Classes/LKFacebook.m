@@ -81,6 +81,15 @@
     return self;
 }
 
+- (void)logoutAccount
+{
+    [LeaderboardKit shared].userRecord[@"LKFacebook_id"] = nil;
+    [LeaderboardKit shared].userRecord[@"LKFacebook_friend_ids"] = nil;
+    [LeaderboardKit shared].userRecord[@"LKFacebook_full_name"] = nil;
+    [LeaderboardKit shared].userRecord[@"LKFacebook_screen_name"] = nil;
+    [[LeaderboardKit shared] removeAccount:self];
+}
+
 - (void)requestAuthWithViewController:(UIViewController *)controller
                               success:(void(^)())success
                               failure:(void(^)(NSError *error))failure

@@ -59,8 +59,10 @@
     
     for (id<LKAccount> account in sortedAccounts) {
         NSString *account_id = [self idForAccountClass:[account class]];
-        if (account_id)
-            [account requestPhotoForAccountId:account_id success:success failure:nil];
+        if (account_id) {
+            if ([account cachedPhotoForAccountId:account_id] == nil)
+                [account requestPhotoForAccountId:account_id success:success failure:nil];
+        }
     }
 }
 

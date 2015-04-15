@@ -15,6 +15,7 @@
 #import "LKGameCenter.h"
 #import "LKTwitter.h"
 #import "LKFacebook.h"
+#import "LKVKontakte.h"
 
 #import "LKLeaderboardListViewController.h"
 

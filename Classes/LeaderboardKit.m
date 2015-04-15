@@ -89,6 +89,10 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 id<LKAccount> account = [[LKFacebook alloc] init];
                 [self addAccount:account];
             }
+            if ([_userRecord[@"LKVKontakte_id"] length]) {
+                id<LKAccount> account = [[LKVKontakte alloc] init];
+                [self addAccount:account];
+            }
             
             for (void(^block)() in self.whenInitializedBlocks)
                 block();
@@ -145,7 +149,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 - (void)checkFriendsChangedRecursively
 {
     if (!self.isInitialized || [self idsPredicates].count == 0) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self checkFriendsChangedRecursively];
         });
         return;
@@ -210,7 +214,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         [self updateLeaderboards];
     }
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self checkFriendsChangedRecursively];
     });
 }
@@ -434,12 +438,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
             return self.accounts.lastObject;
         return self.accounts.firstObject;
     }();
-    if ([[account localPlayer] fullName] && ![[account localPlayer] screenName])
-        record[@"name"] = [[account localPlayer] fullName];
-    else if (![[account localPlayer] fullName] && [[account localPlayer] screenName])
-        record[@"name"] = [[account localPlayer] screenName];
-    else
-        record[@"name"] = [NSString stringWithFormat:@"%@ (%@)",[[account localPlayer] fullName],[[account localPlayer] screenName]];
+    record[@"name"] = [account localPlayer].visibleName;
     record[@"prev_score"] = record[@"score"] ?: 0;
     record[@"score"] = score;
     for (id<LKAccount> account in self.accounts) {
