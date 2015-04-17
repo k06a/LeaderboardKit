@@ -32,37 +32,51 @@
 
 - (UIImage *)cachedImage
 {
-    // To become LKGameCenter last in array :)
-    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id<LKAccount> acc, NSDictionary *bindings) {
-        return ![acc isKindOfClass:[LKGameCenter class]];
-    }]];
-    sortedAccounts = [sortedAccounts arrayByAddingObject:[[LeaderboardKit shared] accountWithClass:[LKGameCenter class]]];
-    
-    for (id<LKAccount> account in sortedAccounts) {
+    NSMutableDictionary *map = [NSMutableDictionary dictionary];
+    for (id<LKAccount> account in [LeaderboardKit shared].accounts) {
+        if ([account isKindOfClass:[LKGameCenter class]])
+            continue;
         NSString *account_id = [self idForAccountClass:[account class]];
-        if (account_id) {
-            UIImage *photo = [account cachedPhotoForAccountId:account_id];
-            if (photo)
-                return photo;
-        }
+        if (account_id)
+            map[[[account class] description]] = account_id;
+    }
+    if (map.count == 0) {
+        id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:[LKGameCenter class]];
+        NSString *account_id = [self idForAccountClass:[account class]];
+        map[[[account class] description]] = account_id;
+    }
+    
+    for (NSString *accountType in map) {
+        NSString *account_id = map[accountType];
+        id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:NSClassFromString(accountType)];
+        UIImage *photo = [account cachedPhotoForAccountId:account_id];
+        if (photo)
+            return photo;
     }
     return nil;
 }
 
 - (void)requestPhoto:(void(^)(UIImage *))success
 {
-    // To become LKGameCenter last in array :)
-    NSArray *sortedAccounts = [[LeaderboardKit shared].accounts filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id<LKAccount> acc, NSDictionary *bindings) {
-        return ![acc isKindOfClass:[LKGameCenter class]];
-    }]];
-    sortedAccounts = [sortedAccounts arrayByAddingObject:[[LeaderboardKit shared] accountWithClass:[LKGameCenter class]]];
-    
-    for (id<LKAccount> account in sortedAccounts) {
+    NSMutableDictionary *map = [NSMutableDictionary dictionary];
+    for (id<LKAccount> account in [LeaderboardKit shared].accounts) {
+        if ([account isKindOfClass:[LKGameCenter class]])
+            continue;
         NSString *account_id = [self idForAccountClass:[account class]];
-        if (account_id) {
-            if ([account cachedPhotoForAccountId:account_id] == nil)
-                [account requestPhotoForAccountId:account_id success:success failure:nil];
-        }
+        if (account_id)
+            map[[[account class] description]] = account_id;
+    }
+    if (map.count == 0) {
+        id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:[LKGameCenter class]];
+        NSString *account_id = [self idForAccountClass:[account class]];
+        map[[[account class] description]] = account_id;
+    }
+    
+    for (NSString *accountType in map) {
+        NSString *account_id = map[accountType];
+        id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:NSClassFromString(accountType)];
+        if ([account cachedPhotoForAccountId:account_id] == nil)
+            [account requestPhotoForAccountId:account_id success:success failure:nil];
     }
 }
 

@@ -77,6 +77,7 @@
 
 - (void)vkSdkReceivedNewToken:(VKAccessToken *)newToken
 {
+    self.account = newToken;
     [self requestFriendsSuccess:self.authSuccess failure:self.authFailure];
 }
 
@@ -90,6 +91,16 @@
 {
     VKCaptchaViewController *vc = [VKCaptchaViewController captchaControllerWithError:captchaError];
     [vc presentIn:[UIApplication sharedApplication].keyWindow.rootViewController];
+}
+
+- (void)vkSdkShouldPresentViewController:(UIViewController *)controller
+{
+    return [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:controller animated:YES completion:nil];
+}
+
+- (void)vkSdkTokenHasExpired:(VKAccessToken *)expiredToken
+{
+    [VKSdk authorize:@[VK_PER_FRIENDS] revokeAccess:YES];
 }
 
 - (void)logoutAccount
@@ -158,37 +169,6 @@
         if (failure)
             failure(error);
     }];
-    
-    /*
-    SLRequest *request = [SLRequest requestForServiceType:SLServiceTypeFacebook requestMethod:SLRequestMethodGET URL:[NSURL URLWithString:[NSString stringWithFormat:@"https://graph.facebook.com/v1.0/%@/picture",account_id]] parameters:@{@"include_entities":@NO}];
-    //request.account = self.account;
-    
-    [request performRequestWithHandler:^(NSData *responseData, NSHTTPURLResponse *urlResponse, NSError *error)
-     {
-         if (error || responseData == nil) {
-             dispatch_async(dispatch_get_main_queue(), ^{
-                 if (failure)
-                     failure(error);
-             });
-             return;
-         }
-         
-         UIImage *image = [UIImage imageWithData:responseData];
-         if (image == nil) {
-             dispatch_async(dispatch_get_main_queue(), ^{
-                 if (failure)
-                     failure(nil);
-             });
-             return;
-         }
-         
-         NSString *key = [NSString stringWithFormat:@"LKVKontakte_%@",account_id];
-         [[SAMCache sharedCache] setImage:image forKey:key];
-         dispatch_async(dispatch_get_main_queue(), ^{
-             if (success)
-                 success(image);
-         });
-     }];*/
 }
 
 @end

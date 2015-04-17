@@ -94,9 +94,11 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 [self addAccount:account];
             }
             
-            for (void(^block)() in self.whenInitializedBlocks)
-                block();
-            self.whenInitializedBlocks = nil;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                for (void(^block)() in self.whenInitializedBlocks)
+                    block();
+                self.whenInitializedBlocks = nil;
+            });
         }];
     }
     return (_userRecord != (id)[NSNull null]) ? _userRecord : nil;
@@ -214,7 +216,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         [self updateLeaderboards];
     }
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self checkFriendsChangedRecursively];
     });
 }
@@ -271,19 +273,11 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 
 #pragma mark - Leaderboards
 
-@synthesize cloudLeaderboards = _cloudLeaderboards;
-
 - (NSMutableDictionary *)cloudLeaderboards
 {
     if (_cloudLeaderboards == nil)
         _cloudLeaderboards = [NSMutableDictionary dictionary];
     return _cloudLeaderboards;
-}
-
-- (void)setCloudLeaderboards:(NSMutableDictionary *)cloudLeaderboards
-{
-    _cloudLeaderboards = cloudLeaderboards;
-    [self calculateCommonLeaderboard];
 }
 
 - (LKLeaderboard *)cloudLeaderboardForName:(NSString *)name
@@ -294,21 +288,14 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 - (void)setCloudLeaderboard:(LKLeaderboard *)cloudLeaderboard forName:(NSString *)name
 {
     ((id)self.cloudLeaderboards)[name] = cloudLeaderboard;
+    [self calculateCommonLeaderboard];
 }
-
-@synthesize commonLeaderboards = _commonLeaderboards;
 
 - (NSDictionary *)commonLeaderboards
 {
     if (_commonLeaderboards == nil)
         _commonLeaderboards = [NSMutableDictionary dictionary];
     return _commonLeaderboards;
-}
-
-- (void)setCommonLeaderboards:(NSMutableDictionary *)commonLeaderboards
-{
-    _commonLeaderboards = commonLeaderboards;
-    [self calculateCommonLeaderboard];
 }
 
 - (LKLeaderboard *)commonLeaderboardForName:(NSString *)name
@@ -331,6 +318,11 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 id<LKAccountWithLeaderboards> account = (id)acc;
                 LKLeaderboard *board = [account leaderboards][name];
                 NSString *key = [NSString stringWithFormat:@"%@_id",[acc class]];
+                
+                if (cloudLeaderboard.sortedScores.count > 0 && [board.localPlayerScore.score compare:cloudLeaderboard.localPlayerScore.score?:@0] == NSOrderedDescending)
+                {
+                    [self reportScore:board.localPlayerScore.score forName:name];
+                }
                 
                 for (LKPlayerScore *score in board.sortedScores) {
                     BOOL needToAdd = ^{
@@ -363,6 +355,9 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 
 - (void)updateLeaderboard:(NSString *)leaderboardName
 {
+    LKLeaderboard *leaderboard = [self cloudLeaderboardForName:leaderboardName];
+    [leaderboard setScores:@[]];
+    
     NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
     for (NSPredicate *predicate in [self idsPredicates]) {
         CKQuery *query = [[CKQuery alloc] initWithRecordType:recordType predicate:predicate];
@@ -370,6 +365,12 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         [self.database performQuery:query inZoneWithID:nil completionHandler:^(NSArray *results, NSError *error) {
             NSMutableArray *scores = [NSMutableArray array];
             for (CKRecord *record in results) {
+                LKPlayerScore *ps = [leaderboard.sortedScores filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
+                    return [ps.player.recordID isEqual:record.recordID];
+                }]].firstObject;
+                if (ps)
+                    continue;
+                
                 LKPlayer *player = [[LKPlayer alloc] init];
                 player.fullName = record[@"name"];
                 player.recordID = record.recordID;
@@ -379,8 +380,8 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 playerScore.score = record[@"score"];
                 [scores addObject:playerScore];
             }
-            LKLeaderboard *leaderboard = [self cloudLeaderboardForName:leaderboardName];
-            [leaderboard setScores:scores];
+            [leaderboard setScores:[leaderboard.sortedScores arrayByAddingObjectsFromArray:scores]];
+            [self calculateCommonLeaderboard];
         }];
     }
 }
