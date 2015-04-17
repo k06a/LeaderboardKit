@@ -356,7 +356,6 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 - (void)updateLeaderboard:(NSString *)leaderboardName
 {
     LKLeaderboard *leaderboard = [self cloudLeaderboardForName:leaderboardName];
-    [leaderboard setScores:@[]];
     
     NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
     for (NSPredicate *predicate in [self idsPredicates]) {
@@ -365,11 +364,13 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         [self.database performQuery:query inZoneWithID:nil completionHandler:^(NSArray *results, NSError *error) {
             NSMutableArray *scores = [NSMutableArray array];
             for (CKRecord *record in results) {
-                LKPlayerScore *ps = [leaderboard.sortedScores filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id evaluatedObject, NSDictionary *bindings) {
+                LKPlayerScore *any = [leaderboard.sortedScores filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(LKPlayerScore *ps, NSDictionary *bindings) {
                     return [ps.player.recordID isEqual:record.recordID];
                 }]].firstObject;
-                if (ps)
+                if (any) {
+                    any.score = @(MAX(any.score.longLongValue,[record[@"score"] longLongValue]));
                     continue;
+                }
                 
                 LKPlayer *player = [[LKPlayer alloc] init];
                 player.fullName = record[@"name"];
