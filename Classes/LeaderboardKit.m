@@ -164,7 +164,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         return NO;
     }();
     BOOL user_id_changed = ^{
-        for (NSString *name in self.commonLeaderboards) {
+        for (NSString *name in self.commonLeaderboards.allKeys) {
             NSString *score_key = [NSString stringWithFormat:@"LK_score_%@",name];
             CKReference *scoreRef = self.userRecord[score_key];
             if (scoreRef.recordID == nil)
@@ -175,6 +175,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                     return;
                 for (id<LKAccount> account in self.accounts) {
                     NSString *kid = [NSString stringWithFormat:@"%@_id", [account class]];
+                    scoreRecord[@"prev_score"] = scoreRecord[@"score"];
                     scoreRecord[kid] = [account localPlayer].account_id;
                 }
                 [self.database saveRecord:scoreRecord completionHandler:nil];
@@ -201,10 +202,11 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     
     if (friends_changed) {
         LKPlayerScore *localScore = ^LKPlayerScore *{
-            for (NSString *name in self.commonLeaderboards)
-                for (LKPlayerScore *score in [self.commonLeaderboards[name] sortedScores])
-                    if (score.player.isLocalPlayer)
-                        return score;
+            for (NSString *name in self.commonLeaderboards.allKeys) {
+                LKLeaderboard *leaderboard = self.commonLeaderboards[name] ;
+                if (leaderboard.localPlayerScore)
+                    return leaderboard.localPlayerScore;
+            }
             return nil;
         }();
         if (localScore) {
@@ -381,7 +383,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                 playerScore.score = record[@"score"];
                 [scores addObject:playerScore];
             }
-            [leaderboard setScores:[leaderboard.sortedScores arrayByAddingObjectsFromArray:scores]];
+            [leaderboard setScores:[scores arrayByAddingObjectsFromArray:leaderboard.sortedScores]];
             [self calculateCommonLeaderboard];
         }];
     }
