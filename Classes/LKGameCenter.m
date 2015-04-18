@@ -111,6 +111,7 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
         dispatch_async(dispatch_get_main_queue(), ^{
             if (success)
                 success(error);
+            [[LeaderboardKit shared] updateLeaderboards];
         });
     };
 }

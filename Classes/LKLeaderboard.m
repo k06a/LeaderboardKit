@@ -43,12 +43,7 @@
         return [ps2.score compare:ps1.score];
     }];
     NSUInteger index = [self.sortedScores indexOfObjectPassingTest:^BOOL(LKPlayerScore *obj, NSUInteger idx, BOOL *stop) {
-        for (id<LKAccount> account in [LeaderboardKit shared].accounts) {
-            LKPlayer *accountPlayer = [account localPlayer];
-            if ([accountPlayer.account_id isEqualToString:obj.player.account_id] && [obj.player.accountType isEqualToString:accountPlayer.accountType])
-                return YES;
-        }
-        return [obj.player.recordID isEqual:[LeaderboardKit shared].userRecord.recordID];
+        return obj.player.isLocalPlayer;
     }];
     self.localPlayerScore = (index == NSNotFound) ? nil : self.sortedScores[index];
 }

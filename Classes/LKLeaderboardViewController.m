@@ -65,7 +65,7 @@
     cell.detailTextLabel.text = [NSString stringWithFormat:@"%@",score.score];
     cell.rankLabel.text = [NSString stringWithFormat:@"%@",@(indexPath.row + 1)];
     
-    BOOL isMe = score.player.isLocalPlayer;
+    BOOL isMe = (self.leaderboard.localPlayerScore == score);
     cell.textLabel.textColor = isMe ? self.view.tintColor : [UIColor blackColor];
     cell.rankLabel.textColor = isMe ? self.view.tintColor : [UIColor blackColor];
     

@@ -43,7 +43,8 @@
     if (map.count == 0) {
         id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:[LKGameCenter class]];
         NSString *account_id = [self idForAccountClass:[account class]];
-        map[[[account class] description]] = account_id;
+        if (account && account_id)
+            map[[[account class] description]] = account_id;
     }
     
     for (NSString *accountType in map) {
@@ -69,7 +70,8 @@
     if (map.count == 0) {
         id<LKAccount> account = [[LeaderboardKit shared] accountWithClass:[LKGameCenter class]];
         NSString *account_id = [self idForAccountClass:[account class]];
-        map[[[account class] description]] = account_id;
+        if (account && account_id)
+            map[[[account class] description]] = account_id;
     }
     
     for (NSString *accountType in map) {

@@ -150,7 +150,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
 
 - (void)checkFriendsChangedRecursively
 {
-    if (!self.isInitialized || [self idsPredicates].count == 0) {
+    if (!self.isInitialized || [self idsPredicatesWithMe:NO].count == 0) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [self checkFriendsChangedRecursively];
         });
@@ -360,31 +360,33 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     LKLeaderboard *leaderboard = [self cloudLeaderboardForName:leaderboardName];
     
     NSString *recordType = [NSString stringWithFormat:@"LeaderboardKit_%@",leaderboardName];
-    for (NSPredicate *predicate in [self idsPredicates]) {
+    for (NSPredicate *predicate in [self idsPredicatesWithMe:YES]) {
         CKQuery *query = [[CKQuery alloc] initWithRecordType:recordType predicate:predicate];
         query.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"score" ascending:NO]];
         [self.database performQuery:query inZoneWithID:nil completionHandler:^(NSArray *results, NSError *error) {
-            NSMutableArray *scores = [NSMutableArray array];
-            for (CKRecord *record in results) {
-                LKPlayerScore *any = [leaderboard.sortedScores filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(LKPlayerScore *ps, NSDictionary *bindings) {
-                    return [ps.player.recordID isEqual:record.recordID];
-                }]].firstObject;
-                if (any) {
-                    any.score = @(MAX(any.score.longLongValue,[record[@"score"] longLongValue]));
-                    continue;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSMutableArray *scores = [NSMutableArray array];
+                for (CKRecord *record in results) {
+                    LKPlayerScore *any = [[scores arrayByAddingObjectsFromArray:leaderboard.sortedScores] filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(LKPlayerScore *ps, NSDictionary *bindings) {
+                        return [ps.player.recordID isEqual:record.recordID];
+                    }]].firstObject;
+                    if (any) {
+                        any.score = @(MAX(any.score.longLongValue,[record[@"score"] longLongValue]));
+                        continue;
+                    }
+                    
+                    LKPlayer *player = [[LKPlayer alloc] init];
+                    player.fullName = record[@"name"];
+                    player.recordID = record.recordID;
+                    player.record = record;
+                    LKPlayerScore *playerScore = [[LKPlayerScore alloc] init];
+                    playerScore.player = player;
+                    playerScore.score = record[@"score"];
+                    [scores addObject:playerScore];
                 }
-                
-                LKPlayer *player = [[LKPlayer alloc] init];
-                player.fullName = record[@"name"];
-                player.recordID = record.recordID;
-                player.record = record;
-                LKPlayerScore *playerScore = [[LKPlayerScore alloc] init];
-                playerScore.player = player;
-                playerScore.score = record[@"score"];
-                [scores addObject:playerScore];
-            }
-            [leaderboard setScores:[scores arrayByAddingObjectsFromArray:leaderboard.sortedScores]];
-            [self calculateCommonLeaderboard];
+                [leaderboard setScores:[scores arrayByAddingObjectsFromArray:leaderboard.sortedScores]];
+                [self calculateCommonLeaderboard];
+            });
         }];
     }
 }
@@ -437,12 +439,14 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         return;
     }
     
-    id<LKAccount> account = ^{
-        if ([self.accounts.firstObject isKindOfClass:[LKGameCenter class]])
-            return self.accounts.lastObject;
-        return self.accounts.firstObject;
-    }();
-    record[@"name"] = [account localPlayer].visibleName;
+    if (record[@"name"] == nil) {
+        id<LKAccount> account = ^{
+            if ([self.accounts.firstObject isKindOfClass:[LKGameCenter class]])
+                return self.accounts.lastObject;
+            return self.accounts.firstObject;
+        }();
+        record[@"name"] = [account localPlayer].visibleName;
+    }
     record[@"prev_score"] = record[@"score"] ?: 0;
     record[@"score"] = score;
     for (id<LKAccount> account in self.accounts) {
@@ -507,7 +511,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     NSPredicate *scorePredicate = [NSPredicate predicateWithFormat:@"(score > %@) AND (prev_score <= %@)", myScore, myScore];
     
     NSMutableArray *subs = [NSMutableArray array];
-    for (NSPredicate *idsPredicate in [self idsPredicates]) {
+    for (NSPredicate *idsPredicate in [self idsPredicatesWithMe:NO]) {
         NSPredicate *predicate = [[NSCompoundPredicate alloc] initWithType:NSAndPredicateType subpredicates:@[scorePredicate,idsPredicate]];
         
         CKSubscription *sub = [[CKSubscription alloc] initWithRecordType:recordType predicate:predicate options:(CKSubscriptionOptionsFiresOnRecordUpdate|CKSubscriptionOptionsFiresOnRecordCreation)];
@@ -553,12 +557,14 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
     }];
 }
 
-- (NSArray *)idsPredicates
+- (NSArray *)idsPredicatesWithMe:(BOOL)withMe
 {
     NSMutableArray *idsPredicates = [NSMutableArray array];
     for (id<LKAccount> account in self.accounts) {
         NSString *key = [NSString stringWithFormat:@"%@_id",[account class]];
         NSArray *ids = [account friend_ids];
+        if (withMe)
+            ids = [ids arrayByAddingObject:self.userRecord[key]];
         while (ids.count) {
             NSInteger count = MIN(ids.count, 240);
             NSArray *subids = [ids subarrayWithRange:NSMakeRange(0, count)];
