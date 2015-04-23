@@ -54,6 +54,8 @@
         cell = [[LKScoreTableViewCell alloc] initWithStyle:(UITableViewCellStyleSubtitle) reuseIdentifier:@"cell_score"];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         cell.imageView.image = [[UIImage imageNamed:@"profile"] imageWithRenderingMode:(UIImageRenderingModeAlwaysTemplate)];
+        cell.imageView.layer.cornerRadius = cell.imageView.bounds.size.width/2;
+        cell.imageView.layer.masksToBounds = YES;
         cell.imageView.tintColor = [UIColor grayColor];
         cell.detailTextLabel.textColor = [UIColor grayColor];
         cell.indentationLevel = 1;
@@ -69,7 +71,9 @@
     cell.textLabel.textColor = isMe ? self.view.tintColor : [UIColor blackColor];
     cell.rankLabel.textColor = isMe ? self.view.tintColor : [UIColor blackColor];
     
-    cell.imageView.image = [score.player.cachedImage makeThumbnailOfSize:CGSizeMake(32, 32)];
+    cell.imageView.image = [score.player.cachedImage makeThumbnailOfSize:CGSizeMake(40, 40)];
+    cell.imageView.layer.cornerRadius = 20;
+    cell.imageView.layer.masksToBounds = YES;
     if (cell.imageView.image == nil) {
         [score.player requestPhoto:^(UIImage *image) {
             if (indexPath.row < [tableView numberOfRowsInSection:0]) {
@@ -79,6 +83,8 @@
             }
         }];
         cell.imageView.image = [[UIImage imageNamed:@"profile"] imageWithRenderingMode:(UIImageRenderingModeAlwaysTemplate)];
+        cell.imageView.layer.cornerRadius = cell.imageView.bounds.size.width/2;
+        cell.imageView.layer.masksToBounds = YES;
     }
     
     return cell;

@@ -119,24 +119,25 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
 - (void)requestFriendsSuccess:(void(^)())success
                       failure:(void(^)(NSError *error))failure
 {
-    [self.account loadFriendPlayersWithCompletionHandler:^(NSArray *friendPlayers, NSError *error) {
-        if (error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
+    [self.account loadFriendPlayersWithCompletionHandler:^(NSArray *friendPlayers, NSError *error)
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (error) {
                 if (failure)
                     failure(error);
+                return;
+            }
+            
+            NSMutableArray *ids = [NSMutableArray array];
+            for (GKPlayer *player in friendPlayers)
+                [ids addObject:player.playerID];
+            
+            self.friend_ids = ids;
+            [LeaderboardKit shared].userRecord[@"LKGameCenter_friend_ids"] = ids;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (success)
+                    success();
             });
-            return;
-        }
-        
-        NSMutableArray *ids = [NSMutableArray array];
-        for (GKPlayer *player in friendPlayers)
-            [ids addObject:player.playerID];
-        
-        self.friend_ids = ids;
-        [LeaderboardKit shared].userRecord[@"LKGameCenter_friend_ids"] = ids;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (success)
-                success();
         });
     }];
 }
@@ -154,6 +155,8 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
             return;
         }
         
+        NSLog(@"LKGameCenter found %@ leaderboards", @(leaderboards.count));
+        
         __block NSInteger count = leaderboards.count;
         __block NSError *anyError = nil;
         
@@ -163,44 +166,51 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
             
             if (--count == 0) {
                 if (anyError) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        if (failure)
-                            failure(anyError);
-                    });
+                    if (failure)
+                        failure(anyError);
                     return;
                 }
                 
                 [[LeaderboardKit shared] calculateCommonLeaderboard];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (success)
-                        success();
-                });
+                if (success)
+                    success();
             }
         };
         
         for (GKLeaderboard *leaderboard in leaderboards) {
             [leaderboard loadScoresWithCompletionHandler:^(NSArray *leaderboardScores, NSError *error)
             {
-                if (error) {
-                    completionBlock(error);
-                    return;
-                }
-                
-                NSMutableArray *scores = [NSMutableArray array];
-                for (GKScore *score in leaderboard.scores) {
-                    LKPlayerScore *ps = [[LKPlayerScore alloc] init];
-                    ps.score = @(score.value);
-                    ps.player = [[LKPlayer alloc] init];
-                    ps.player.account_id = score.player.playerID;
-                    ps.player.fullName = score.player.displayName;
-                    ps.player.screenName = score.player.alias;
-                    ps.player.accountType = [[self class] description];
-                    [scores addObject:ps];
-                }
-                LKLeaderboard *lb = [[LKLeaderboard alloc] init];
-                [lb setScores:scores];
-                self.leaderboards[LKGameCenterIdentifierToNameTranform(leaderboard.identifier)] = lb;
-                completionBlock(nil);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (error) {
+                        completionBlock(error);
+                        return;
+                    }
+                    
+                    NSLog(@"LKGameCenter found leaderboard %@ (%@ scores)", leaderboard.title, @(leaderboardScores.count));
+                    
+                    LKLeaderboard *lb = self.leaderboards[LKGameCenterIdentifierToNameTranform(leaderboard.identifier)] ?: [[LKLeaderboard alloc] init];
+                    NSMutableArray *scores = [NSMutableArray arrayWithArray:lb.sortedScores];
+                    for (GKScore *score in leaderboard.scores) {
+                        LKPlayerScore *ps = ^{
+                            for (LKPlayerScore *ps in scores) {
+                                if ([ps.player.account_id isEqualToString:score.player.playerID])
+                                    return ps;
+                            }
+                            [scores addObject:[[LKPlayerScore alloc] init]];
+                            return (LKPlayerScore *)scores.lastObject;
+                        }();
+                        
+                        ps.score = @(score.value);
+                        ps.player = [[LKPlayer alloc] init];
+                        ps.player.account_id = score.player.playerID;
+                        ps.player.fullName = score.player.displayName;
+                        ps.player.screenName = score.player.alias;
+                        ps.player.accountType = [[self class] description];
+                    }
+                    [lb setScores:scores];
+                    self.leaderboards[LKGameCenterIdentifierToNameTranform(leaderboard.identifier)] = lb;
+                    completionBlock(nil);
+                });
             }];
         }
     }];
@@ -213,16 +223,17 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
 
     score.value = scoreValue.longLongValue;
     [GKScore reportScores:@[score] withCompletionHandler:^(NSError *error) {
-        if (error) {
-            NSLog(@"GameCenter score report error: %@", error);
-            return;
-        }
-        NSLog(@"GameCenter score report success");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (error) {
+                NSLog(@"GameCenter score report error: %@", error);
+                return;
+            }
+            NSLog(@"GameCenter score report success");
+        });
     }];
     
     LKLeaderboard *leaderboard = self.leaderboards[name];
-    LKPlayerScore *ps = [leaderboard findScoreWithAccountId:self.localPlayer.account_id];
-    ps.score = scoreValue;
+    leaderboard.localPlayerScore.score = scoreValue;
     [leaderboard setScores:leaderboard.sortedScores];
 }
 
@@ -236,19 +247,22 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
                          success:(void(^)(UIImage *image))success
                          failure:(void(^)(NSError *error))failure
 {
-    [GKPlayer loadPlayersForIdentifiers:@[account_id] withCompletionHandler:^(NSArray *players, NSError *error) {
+    [GKPlayer loadPlayersForIdentifiers:@[account_id] withCompletionHandler:^(NSArray *players, NSError *error)
+    {
         GKPlayer *player = players.firstObject;
         [player loadPhotoForSize:(GKPhotoSizeNormal) withCompletionHandler:^(UIImage *photo, NSError *error) {
-            if (photo) { // it can be non-nil and error if cached by GameKit
-                NSString *key = [NSString stringWithFormat:@"LKGameCenter_%@",account_id];
-                [[SAMCache sharedCache] setImage:photo forKey:key];
-                if (success)
-                    success(photo);
-                return;
-            }
-            
-            if (failure)
-                failure(error);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (photo) { // it can be non-nil and error if cached by GameKit
+                    NSString *key = [NSString stringWithFormat:@"LKGameCenter_%@",account_id];
+                    [[SAMCache sharedCache] setImage:photo forKey:key];
+                    if (success)
+                        success(photo);
+                    return;
+                }
+                
+                if (failure)
+                    failure(error);
+            });
         }];
     }];
 }
