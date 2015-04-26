@@ -43,7 +43,7 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
     self.localPlayer = ^{
         LKPlayer *p = [[LKPlayer alloc] init];
         p.account_id = account.playerID;
-        p.fullName = account.displayName;
+        p.fullName = nil;
         p.screenName = account.alias;
         p.recordID = [LeaderboardKit shared].userRecord.recordID;
         p.accountType = [[self class] description];
@@ -55,8 +55,8 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
     
     if (![[LeaderboardKit shared].userRecord[@"LKGameCenter_id"] isEqualToString:self.localPlayer.account_id])
         [LeaderboardKit shared].userRecord[@"LKGameCenter_id"] = self.localPlayer.account_id;
-    if (![[LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"] isEqualToString:self.localPlayer.fullName])
-        [LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"] = self.localPlayer.fullName;
+    if ([LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"])
+        [LeaderboardKit shared].userRecord[@"LKGameCenter_full_name"] = nil;
     if (![[LeaderboardKit shared].userRecord[@"LKGameCenter_screen_name"] isEqualToString:self.localPlayer.screenName])
         [LeaderboardKit shared].userRecord[@"LKGameCenter_screen_name"] = self.localPlayer.screenName;
 }
@@ -178,6 +178,9 @@ NSString *(^LKGameCenterNameToIdentifierTranform)(NSString *) = ^NSString *(NSSt
         };
         
         for (GKLeaderboard *leaderboard in leaderboards) {
+            leaderboard.playerScope = GKLeaderboardPlayerScopeFriendsOnly;
+            leaderboard.timeScope = GKLeaderboardTimeScopeAllTime;
+
             [leaderboard loadScoresWithCompletionHandler:^(NSArray *leaderboardScores, NSError *error)
             {
                 dispatch_async(dispatch_get_main_queue(), ^{
