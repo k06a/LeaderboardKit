@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name        = "LeaderboardKit"
-  s.version     = "0.0.3"
+  s.version     = "0.0.4"
   s.summary     = "iOS and OSX social leaderboards and highscore push notifications on top of Apple CloudKit"
   s.description = <<-DESC
                    Leaderboards with GameCenter, Twitter, Facebook friends and others.
@@ -11,7 +11,7 @@ Pod::Spec.new do |s|
   s.license          = "MIT"
   s.author           = { "Anton Bukov" => "k06aaa@gmail.com" }
   s.social_media_url = "http://twitter.com/k06a"
-  s.platform         = :ios, "6.0"
+  s.platform         = :ios, "7.0"
   s.source           = { :git => "https://github.com/k06a/LeaderboardKit.git", :tag => "#{s.version}" }
 
   s.source_files  = "Classes", "Classes/**/*.{h,m}"
