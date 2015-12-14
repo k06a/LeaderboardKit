@@ -211,7 +211,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
                     scoreRecord[kid] = [account localPlayer].account_id;
                 }
                 scoreRecord[@"prev_score"] = scoreRecord[@"score"];
-                [self.database saveRecord:scoreRecord completionHandler:nil];
+                [self.database saveRecord:scoreRecord completionHandler:^(CKRecord * _Nullable record, NSError * _Nullable error) {}];
             }];
         }
         [self updateLeaderboards];
@@ -426,7 +426,7 @@ NSString *LKLeaderboardChangedNotification = @"LKLeaderboardChangedNotification"
         }];
         while (sortedResults.count > 1) {
             CKRecord *firstRecord = sortedResults.firstObject;
-            [self.database deleteRecordWithID:firstRecord.recordID completionHandler:nil];
+            [self.database deleteRecordWithID:firstRecord.recordID completionHandler:^(CKRecordID * _Nullable recordID, NSError * _Nullable error) {}];
             sortedResults = [sortedResults subarrayWithRange:NSMakeRange(1, sortedResults.count-1)];
         }
 

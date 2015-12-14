@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name        = "LeaderboardKit"
-  s.version     = "0.0.4"
+  s.version     = "0.0.5"
   s.summary     = "iOS and OSX social leaderboards and highscore push notifications on top of Apple CloudKit"
   s.description = <<-DESC
                    Leaderboards with GameCenter, Twitter, Facebook friends and others.
